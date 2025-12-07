@@ -1,0 +1,699 @@
+/**
+ * MAIN PROCESS - December 2025 Modernized
+ *
+ * Wires up the complete Echosphere AI system with:
+ * - New GeminiLiveClient (16kHz audio, native-audio model)
+ * - AudioManager2025 (volume monitoring)
+ * - Knowledge store (Orama)
+ * - IPC handlers for audio streaming
+ * - Latency tracking
+ */
+
+const electron = require('electron');
+const { app, BrowserWindow, ipcMain } = electron;
+import type { BrowserWindow as BrowserWindowType, IpcMainEvent } from 'electron';
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import { GeminiLiveClient } from './llm/geminiLiveClient';
+import { GeminiDiagnostics } from './llm/geminiDiagnostics';
+import { AudioManager2025 } from './audio/audioManager2025';
+
+// 🔍 DEBUG: Capture all logs to file for analysis
+const LOG_FILE = path.join(app.getPath('userData'), 'snuggles_debug.log');
+const logStream = fs.createWriteStream(LOG_FILE, { flags: 'w' });
+
+function fileLog(level: string, ...args: any[]) {
+  const msg = args.map(a => {
+    if (a instanceof Error) {
+      return `[ERROR: ${a.message}]\nStack: ${a.stack}`;
+    }
+    if (typeof a === 'object') {
+      try {
+        const json = JSON.stringify(a);
+        if (json === '{}' && a !== null) {
+          // Handle non-enumerable properties (like custom Errors)
+          const keys = Object.getOwnPropertyNames(a);
+          if (keys.length > 0) {
+            return `{ ${keys.map(k => `${k}: ${String((a as any)[k])}`).join(', ')} }`;
+          }
+        }
+        return json;
+      } catch {
+        return String(a);
+      }
+    }
+    return String(a);
+  }).join(' ');
+  logStream.write(`[${new Date().toISOString()}] [${level}] ${msg}\n`);
+}
+
+// Hook into console
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+console.log = (...args) => { fileLog('INFO', ...args); originalLog(...args); };
+console.error = (...args) => { fileLog('ERROR', ...args); originalError(...args); };
+console.warn = (...args) => { fileLog('WARN', ...args); originalWarn(...args); };
+
+console.log(`[Main] 📝 Logging validation to: ${LOG_FILE}`);
+import { KnowledgeStore } from './knowledge/store';
+import { SessionMemoryService } from './memory/database';
+import { DrSnugglesBrain } from '../brain/DrSnugglesBrain';
+import { IPC_CHANNELS, AppConfig, LatencyMetrics } from '../shared/types';
+
+// Load environment variables from .env.local in project root
+// Use process.cwd() instead of __dirname to avoid dist/ path issues
+const envPath = path.join(process.cwd(), '../.env.local');
+console.log(`[ENV] Loading .env from: ${envPath}`);
+console.log(`[ENV] File exists: ${fs.existsSync(envPath)}`);
+
+// Force override to ensure .env.local takes precedence over system env vars
+dotenv.config({ path: envPath, override: true });
+
+// Unset GOOGLE_API_KEY if it exists (to avoid SDK conflicts)
+if (process.env.GOOGLE_API_KEY) {
+  console.log('⚠️  Unsetting GOOGLE_API_KEY to avoid conflicts with GEMINI_API_KEY');
+  delete process.env.GOOGLE_API_KEY;
+}
+
+// Lazy initialization - app.getPath('userData') is only available after app is ready
+let CONFIG_PATH: string | null = null;
+function getConfigPath(): string {
+  if (!CONFIG_PATH) {
+    CONFIG_PATH = path.join(app.getPath('userData'), 'config.json');
+  }
+  return CONFIG_PATH;
+}
+
+const API_KEY = process.env.GEMINI_API_KEY || '';
+
+// PROOF OF LIFE: Show first 10 chars of API key to verify it loaded correctly
+if (API_KEY) {
+  console.log(`[ENV] ✅ API Key loaded: ${API_KEY.substring(0, 10)}...`);
+
+  // 🔍 PRE-FLIGHT DIAGNOSTIC: Validate API key format immediately
+  const diagnostics = new GeminiDiagnostics(API_KEY);
+  const formatCheck = diagnostics.validateApiKeyFormat();
+  if (!formatCheck.passed) {
+    console.error(`[ENV] ⚠️ API Key format issue: ${formatCheck.message}`);
+    if (formatCheck.suggestion) {
+      console.error(`[ENV] 💡 ${formatCheck.suggestion}`);
+    }
+  }
+} else {
+  console.error('[ENV] ❌ API Key is EMPTY! Check your .env.local file');
+}
+
+console.log('DEBUG: app is', app);
+
+/**
+ * The main application class for Dr. Snuggles (2025 Edition).
+ *
+ * This modernized version integrates the new Gemini Live Client, advanced audio management,
+ * and enhanced knowledge storage features. It handles the complete lifecycle of the Electron
+ * application and manages IPC communication between the main and renderer processes.
+ */
+class SnugglesApp2025 {
+  private mainWindow: BrowserWindowType | null = null;
+  private audioManager: AudioManager2025;
+  private geminiLiveClient: GeminiLiveClient;
+  private knowledgeStore: KnowledgeStore;
+  private sessionMemory: SessionMemoryService;
+  private brain: DrSnugglesBrain; // Brain integration
+  private config: AppConfig;
+  private latencyMetrics: LatencyMetrics[] = [];
+
+  /**
+   * Initializes the SnugglesApp2025.
+   *
+   * Sets up audio manager, Gemini client with brain, knowledge store.
+   * IPC handlers and config are set up after app is ready.
+   */
+  constructor() {
+    // Note: config is loaded in initialize() after app.whenReady()
+    this.config = {
+      inputDeviceId: null,
+      outputDeviceId: null,
+      apiKey: API_KEY,
+      lastUsed: Date.now()
+    };
+
+    // Initialize brain FIRST
+    console.log('🧠 Initializing Dr. Snuggles Brain...');
+    this.brain = new DrSnugglesBrain({
+      apiKey: API_KEY,
+    });
+
+    this.audioManager = new AudioManager2025();
+    // Pass brain to Gemini Live Client
+    this.geminiLiveClient = new GeminiLiveClient(API_KEY, this.brain);
+    this.knowledgeStore = new KnowledgeStore();
+    this.sessionMemory = new SessionMemoryService();
+
+    // Note: setupIPC() and setupGeminiEventHandlers() are called in initialize() after app.whenReady()
+  }
+
+  /**
+   * Loads the application configuration from the user data directory.
+   *
+   * @returns {AppConfig} The loaded configuration or default values.
+   */
+  private loadConfig(): AppConfig {
+    try {
+      const configPath = getConfigPath();
+      if (fs.existsSync(configPath)) {
+        return JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      }
+    } catch (error) {
+      console.error('Failed to load config:', error);
+    }
+
+    return {
+      inputDeviceId: null,
+      outputDeviceId: null,
+      apiKey: API_KEY,
+      lastUsed: Date.now()
+    };
+  }
+
+  /**
+   * Saves the current application configuration to the user data directory.
+   */
+  private saveConfig(): void {
+    try {
+      fs.writeFileSync(getConfigPath(), JSON.stringify(this.config, null, 2));
+    } catch (error) {
+      console.error('Failed to save config:', error);
+    }
+  }
+
+  /**
+   * Sets up event handlers for the Gemini Live Client.
+   *
+   * Handles connection events (connected, disconnected, reconnecting),
+   * audio reception, and errors. Updates the renderer process via IPC.
+   */
+  private setupGeminiEventHandlers(): void {
+    // Connected
+    this.geminiLiveClient.on('connected', () => {
+      console.log('[Main] ✅ Gemini connected');
+      this.mainWindow?.webContents.send(IPC_CHANNELS.CONNECTION_STATUS, {
+        connected: true,
+        connecting: false,
+        error: null
+      });
+    });
+
+    // Disconnected
+    this.geminiLiveClient.on('disconnected', (reason) => {
+      console.log(`[Main] ❌ Gemini disconnected: ${reason}`);
+      this.mainWindow?.webContents.send(IPC_CHANNELS.CONNECTION_STATUS, {
+        connected: false,
+        connecting: false,
+        error: reason
+      });
+    });
+
+    // Audio received
+    this.geminiLiveClient.on('audioReceived', (audioData, latencyMs) => {
+      // Process audio (volume calculation)
+      const processedAudio = this.audioManager.processOutputAudio(audioData);
+
+      // Forward to renderer for playback
+      this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, processedAudio);
+
+      // Track latency
+      const metrics: LatencyMetrics = {
+        audioUpload: 0, // Set when sending
+        geminiProcessing: latencyMs,
+        audioDownload: 0, // Negligible
+        totalRoundtrip: latencyMs,
+        timestamp: Date.now()
+      };
+      this.latencyMetrics.push(metrics);
+      this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_LATENCY_UPDATE, metrics);
+
+      console.log(`[Main] 📊 Total latency: ${latencyMs.toFixed(2)}ms`);
+    });
+
+    // Text message received
+    this.geminiLiveClient.on('message', (message) => {
+      this.mainWindow?.webContents.send(IPC_CHANNELS.MESSAGE_RECEIVED, message);
+    });
+
+    // Error
+    this.geminiLiveClient.on('error', (error) => {
+      console.error('[Main] ⚠️ Gemini error:', error);
+      this.mainWindow?.webContents.send(IPC_CHANNELS.CONNECTION_STATUS, {
+        connected: false,
+        connecting: false,
+        error: error.message
+      });
+    });
+
+    // Reconnecting
+    this.geminiLiveClient.on('reconnecting', (attempt, delayMs) => {
+      console.log(`[Main] 🔄 Reconnecting... (attempt ${attempt}, delay ${delayMs}ms)`);
+      this.mainWindow?.webContents.send(IPC_CHANNELS.CONNECTION_STATUS, {
+        connected: false,
+        connecting: true,
+        error: `Reconnecting (attempt ${attempt})...`
+      });
+    });
+  }
+
+  /**
+   * Sets up Inter-Process Communication (IPC) handlers.
+   *
+   * Registers handlers for audio device management, Gemini session control,
+   * audio streaming, and legacy support.
+   */
+  private setupIPC(): void {
+    // ===== Audio Device Management =====
+    ipcMain.handle(IPC_CHANNELS.GET_AUDIO_DEVICES, async () => {
+      return this.audioManager.getDevices();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.SET_AUDIO_DEVICES, async (_: any, inputId: string, outputId: string) => {
+      this.config.inputDeviceId = inputId;
+      this.config.outputDeviceId = outputId;
+      this.saveConfig();
+      await this.audioManager.setDevices(inputId, outputId);
+      return true;
+    });
+
+    // ===== December 2025 Gemini Live Streaming =====
+
+    /**
+     * Start Gemini Live session
+     */
+    ipcMain.handle(IPC_CHANNELS.GENAI_START_SESSION, async (_: any, config: any) => {
+      try {
+        console.log('[Main] 🎙️ Starting Gemini Live session...');
+
+        const sessionSummaries = await this.getRecentSummaries(3);
+        const knowledgeContext = await this.knowledgeStore.getSystemContext();
+
+        await this.geminiLiveClient.connect({
+          sessionSummaries,
+          knowledgeContext,
+          ...config
+        });
+
+        return { success: true };
+      } catch (error: any) {
+        console.error('[Main] ❌ Session start failed:', error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    /**
+     * Send audio chunk to Gemini
+     * Renderer sends 48kHz Float32, we convert to 16kHz PCM16
+     */
+    ipcMain.handle(IPC_CHANNELS.GENAI_SEND_AUDIO_CHUNK, async (_: any, audioChunk: Float32Array) => {
+      try {
+        const startTime = performance.now();
+
+        // Process input audio (volume monitoring)
+        this.audioManager.processInputAudio(audioChunk);
+
+        // Send to Gemini (handles 16kHz conversion internally)
+        await this.geminiLiveClient.sendAudio(audioChunk);
+
+        const totalTime = performance.now() - startTime;
+
+        // Emit VAD state periodically
+        const vadState = this.geminiLiveClient.getVADState();
+        this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_VAD_STATE, vadState);
+
+        return totalTime;
+      } catch (error: any) {
+        console.error('[Main] ❌ Send audio failed:', error);
+        return -1;
+      }
+    });
+
+    // ===== Legacy Handlers (for backward compatibility) =====
+
+    ipcMain.handle(IPC_CHANNELS.CONNECT_GEMINI, async () => {
+      try {
+        const sessionSummaries = await this.getRecentSummaries(3);
+        const knowledgeContext = await this.knowledgeStore.getSystemContext();
+        await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
+        return { success: true };
+      } catch (error: any) {
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.DISCONNECT_GEMINI, async () => {
+      await this.geminiLiveClient.disconnect();
+      return true;
+    });
+
+    ipcMain.handle(IPC_CHANNELS.SEND_MESSAGE, async (_event: any, text: string) => {
+      // Note: GeminiLiveClient is audio-only, text messages are not supported
+      console.log('[Main] Text message received (audio-only mode):', text);
+      return true;
+    });
+
+    ipcMain.handle(IPC_CHANNELS.TOGGLE_MUTE, async () => {
+      this.audioManager.toggleMute();
+      return this.audioManager.isMuted();
+    });
+
+    ipcMain.handle(IPC_CHANNELS.GET_STATUS, async () => {
+      return {
+        connected: this.geminiLiveClient.connected,
+        muted: this.audioManager.isMuted(),
+        devices: await this.audioManager.getDevices()
+      };
+    });
+
+    ipcMain.handle(IPC_CHANNELS.RESET_AGENT, async () => {
+      await this.geminiLiveClient.disconnect();
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      const sessionSummaries = await this.getRecentSummaries(3);
+      const knowledgeContext = await this.knowledgeStore.getSystemContext();
+      await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
+      return true;
+    });
+
+    ipcMain.handle(IPC_CHANNELS.SEARCH_KNOWLEDGE, async (_: any, query: string) => {
+      return this.knowledgeStore.search(query);
+    });
+
+    ipcMain.handle(IPC_CHANNELS.LOAD_KNOWLEDGE, async () => {
+      const knowledgeDir = path.join(__dirname, '../../knowledge');
+      await this.knowledgeStore.loadDocuments(knowledgeDir);
+      return { success: true, count: await this.knowledgeStore.getDocumentCount() };
+    });
+
+    // ===== GUI Handlers (December 2025) =====
+
+    ipcMain.on('stream:toggle', async (_event: IpcMainEvent, isLive: boolean) => {
+      console.log(`[Main] 🎚️ stream:toggle: ${isLive}`);
+      if (isLive) {
+        const sessionSummaries = await this.getRecentSummaries(3);
+        const knowledgeContext = await this.knowledgeStore.getSystemContext();
+        await this.geminiLiveClient.connect({
+          sessionSummaries,
+          knowledgeContext
+        });
+      } else {
+        await this.geminiLiveClient.disconnect();
+      }
+    });
+
+    ipcMain.on('voice:select', async (_event: IpcMainEvent, voice: string) => {
+      console.log(`[Main] 🗣️ voice:select: ${voice}`);
+      this.geminiLiveClient.setVoice(voice);
+      // Auto-reconnect if already connected to apply voice change
+      if (this.geminiLiveClient.connected) {
+        console.log(`[Main] 🔄 Reconnecting to apply voice change...`);
+        await this.geminiLiveClient.disconnect();
+        const sessionSummaries = await this.getRecentSummaries(3);
+        const knowledgeContext = await this.knowledgeStore.getSystemContext();
+        await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
+      }
+    });
+
+    ipcMain.on('voice:test', async (_event: IpcMainEvent, voice: string) => {
+      console.log(`[Main] 🗣️ voice:test: ${voice}`);
+      // Set the voice
+      this.geminiLiveClient.setVoice(voice);
+
+      // Connect if not already connected, send test message, then disconnect
+      const wasConnected = this.geminiLiveClient.connected;
+
+      try {
+        if (!wasConnected) {
+          console.log(`[Main] 🔌 Connecting for voice test...`);
+          await this.geminiLiveClient.connect({});
+        }
+
+        // Send a short test phrase
+        await this.geminiLiveClient.sendText("Hello! This is a voice test. How do I sound?");
+
+        // If we weren't connected before, disconnect after a delay to let the response play
+        if (!wasConnected) {
+          setTimeout(async () => {
+            console.log(`[Main] 🔌 Disconnecting after voice test...`);
+            await this.geminiLiveClient.disconnect();
+          }, 10000); // Wait 10 seconds for response
+        }
+      } catch (error) {
+        console.error(`[Main] ❌ Voice test failed:`, error);
+      }
+    });
+
+    ipcMain.on('voice:style', (_event: IpcMainEvent, styleConfig: { style: string, pace: string, tone: string, accent: string }) => {
+      console.log(`[Main] 🎭 voice:style:`, styleConfig);
+      // Build voice style instruction
+      const styleInstruction = `[Voice Direction: Speak in a ${styleConfig.style} style, with a ${styleConfig.pace} pace, ${styleConfig.tone} tone, and ${styleConfig.accent} accent.]`;
+      console.log(`[Main] 📝 Injecting style prompt: ${styleInstruction}`);
+      // Send as context injection to influence the next response
+      this.geminiLiveClient.sendText(styleInstruction);
+    });
+
+    ipcMain.on('audio:set-volume', (_event: IpcMainEvent, volumeRaw: number) => {
+      this.audioManager.setOutputVolume(volumeRaw);
+    });
+
+    ipcMain.on('audio:mute', (_event: IpcMainEvent, muted: boolean) => {
+      console.log(`[Main] 🔇 audio:mute: ${muted}`);
+      if (muted !== this.audioManager.isMuted()) {
+        this.audioManager.toggleMute();
+      }
+    });
+
+    ipcMain.on('audio:mic-mute', (_event: IpcMainEvent, muted: boolean) => {
+      console.log(`[Main] 🎤 audio:mic-mute: ${muted}`);
+      this.audioManager.setInputMuted(muted);
+    });
+
+    ipcMain.on('audio:interrupt', () => {
+      console.log(`[Main] 🛑 audio:interrupt`);
+      this.geminiLiveClient.sendText(" ");
+    });
+
+    ipcMain.on('brain:thinking-mode', (_event: IpcMainEvent, enabled: boolean) => {
+      console.log(`[Main] 🧠 brain:thinking-mode: ${enabled}`);
+      // Future: Update brain configuration
+    });
+
+    ipcMain.on('brain:thinking-budget', (_event: IpcMainEvent, budget: number) => {
+      console.log(`[Main] 🧠 brain:thinking-budget: ${budget}`);
+    });
+
+    ipcMain.on('avatar:action', (_event: IpcMainEvent, action: string) => {
+      console.log(`[Main] 🐻 avatar:action: ${action}`);
+    });
+
+    ipcMain.on('context:inject', (_event: IpcMainEvent, text: string) => {
+      console.log(`[Main] 💉 context:inject: ${text}`);
+      this.geminiLiveClient.sendText(text);
+    });
+
+    ipcMain.on('log:message', (_event: IpcMainEvent, { level, args }: { level: string, args: any[] }) => {
+      console.log(`[Renderer][${level.toUpperCase()}]`, ...args);
+    });
+
+    ipcMain.on('system:update-prompt', async (_event: IpcMainEvent, prompt: string) => {
+      console.log(`[Main] 📝 system:update-prompt received`);
+      console.log(`[Main] 📝 New prompt preview: ${prompt.substring(0, 100)}...`);
+
+      // Send the prompt as a context injection to immediately affect behavior
+      // Note: For permanent change, would need to reconnect with new systemInstruction
+      console.log(`[Main] 💉 Injecting new persona directive...`);
+      this.geminiLiveClient.sendText(`[SYSTEM DIRECTIVE UPDATE] ${prompt.substring(0, 500)}`);
+      console.log(`[Main] ✅ Prompt directive sent`);
+    });
+
+    // Forward volume updates
+    this.audioManager.on('volumeUpdate', (data) => {
+      this.mainWindow?.webContents.send(IPC_CHANNELS.VOLUME_UPDATE, data);
+    });
+  }
+
+  /**
+   * Retrieves recent session summaries.
+   *
+   * @param {number} count - The number of summaries to retrieve.
+   * @returns {Promise<string[]>} A promise resolving to an array of summaries.
+   */
+  private async getRecentSummaries(count: number): Promise<string[]> {
+    try {
+      return await this.sessionMemory.getRecentSummaries(count);
+    } catch (error) {
+      console.error('[Main] Failed to retrieve summaries:', error);
+      return [];
+    }
+  }
+
+  /**
+   * Creates the main browser window for the application.
+   *
+   * Configures window properties, loads the renderer (Vite dev server or built files),
+   * and initializes the knowledge base.
+   *
+   * @returns {Promise<void>}
+   */
+  async createWindow(): Promise<void> {
+    // Debug preload path
+    const preloadPath = path.join(__dirname, 'preload.js');
+    console.log('[Main] __dirname:', __dirname);
+    console.log('[Main] Preload path:', preloadPath);
+    console.log('[Main] Preload exists:', fs.existsSync(preloadPath));
+
+    this.mainWindow = new BrowserWindow({
+      width: 1400,
+      height: 900,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true,
+        preload: preloadPath
+      },
+      title: 'Dr. Snuggles - Echosphere AI (Dec 2025)',
+      icon: path.join(__dirname, '../../public/icon.png')
+    });
+
+    // Load renderer
+    // Check if Vite dev server is running (always in dev mode for npm run dev)
+    const isDev = !app.isPackaged;
+    const rendererIndex = path.join(__dirname, '../../renderer/index.html');
+
+    if (isDev) {
+      // Try multiple ports since Vite may use an alternate if 5173 is in use
+      const ports = [5173, 5174, 5175, 5176];
+      console.log('[Main] Loading from Vite dev server...');
+      const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+      const tryPort = async (port: number): Promise<boolean> => {
+        try {
+          await this.mainWindow?.loadURL(`http://localhost:${port}`);
+          this.mainWindow?.webContents.openDevTools();
+
+          // Forward renderer console logs to terminal
+          this.mainWindow?.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+            const levelMap: { [key: number]: string } = { 0: 'LOG', 1: 'WARN', 2: 'ERROR' };
+            const levelStr = levelMap[level] || 'INFO';
+            console.log(`[RENDERER ${levelStr}] ${message} (${sourceId}:${line})`);
+          });
+
+          console.log(`[Main] ✅ Connected to Vite dev server on port ${port}`);
+          return true;
+        } catch (err: any) {
+          return false;
+        }
+      };
+
+      const loadWithRetry = async (retries = 5, delay = 2000): Promise<boolean> => {
+        // Try each port
+        for (const port of ports) {
+          if (await tryPort(port)) return true;
+        }
+
+        if (retries > 0) {
+          console.log(`[Main] ⏳ Waiting for Vite dev server... (${retries} retries left)`);
+          await wait(delay);
+          return loadWithRetry(retries - 1, delay);
+        } else {
+          console.error('[Main] ❌ Failed to load Vite dev server on any port');
+          return false;
+        }
+      };
+
+      const loadedDevServer = await loadWithRetry();
+
+      if (!loadedDevServer && this.mainWindow) {
+        console.log('[Main] Falling back to built renderer assets');
+        try {
+          await this.mainWindow.loadFile(rendererIndex);
+        } catch (fallbackError: any) {
+          console.error('[Main] ❌ Fallback to built renderer failed:', fallbackError.message);
+        }
+      }
+    } else {
+      console.log('[Main] Loading from built files');
+      try {
+        if (this.mainWindow) {
+          await this.mainWindow.loadFile(rendererIndex);
+        }
+      } catch (e: any) {
+        console.error('[Main] ❌ Failed to load built files:', e.message);
+      }
+    }
+
+    if (this.mainWindow) {
+      this.mainWindow.on('closed', () => {
+        this.mainWindow = null;
+      });
+    }
+
+    // Auto-load knowledge base
+    const knowledgeDir = path.join(__dirname, '../../knowledge');
+    try {
+      await this.knowledgeStore.loadDocuments(knowledgeDir);
+      console.log('[Main] ✅ Knowledge base loaded');
+    } catch (error) {
+      console.error('[Main] ⚠️ Knowledge base load failed:', error);
+    }
+  }
+
+  /**
+   * Initializes the application.
+   *
+   * Waits for the app to be ready, creates the window, and sets up global app event listeners.
+   *
+   * @returns {Promise<void>}
+   */
+  async initialize(): Promise<void> {
+    await app.whenReady();
+
+    // Initialize brain memory after app is ready
+    console.log('🧠 Initializing brain memory...');
+    await this.brain.initializeMemory();
+    console.log('✅ Brain memory initialized');
+
+    // Load config after app is ready (app.getPath requires app to be ready)
+    this.config = this.loadConfig();
+
+    // Set up IPC handlers after app is ready
+    this.setupIPC();
+    this.setupGeminiEventHandlers();
+
+    console.log('='.repeat(60));
+    console.log('🚀 ECHOSPHERE AI - DECEMBER 2025 EDITION');
+    console.log('='.repeat(60));
+    console.log('✅ New @google/genai SDK v1.30.0+');
+    console.log('✅ Native-audio model: gemini-2.5-flash-native-audio-preview');
+    console.log('✅ Audio: 16kHz upstream, 24kHz downstream');
+    console.log('✅ Voice Activity Detection enabled');
+    console.log('✅ Exponential backoff reconnection');
+    console.log('✅ Latency tracking active');
+    console.log('🧠 AI Brain: ACTIVE (RAG + Personality + Memory)');
+    console.log('='.repeat(60));
+
+    await this.createWindow();
+
+    app.on('window-all-closed', () => {
+      if (process.platform !== 'darwin') {
+        app.quit();
+      }
+    });
+
+    app.on('activate', () => {
+      if (this.mainWindow === null) {
+        this.createWindow();
+      }
+    });
+  }
+}
+
+// Bootstrap
+const snugglesApp = new SnugglesApp2025();
+snugglesApp.initialize().catch(console.error);

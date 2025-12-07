@@ -1,0 +1,54 @@
+{
+  "name": "snuggles-audio-node",
+  "version": "1.0.0",
+  "description": "Dr. Snuggles - Local-First AI Audio Companion for Twitter Spaces",
+  "main": "dist/main/main/main2025.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "concurrently --kill-others \"npm run dev:main\" \"npm run dev:renderer\"",
+    "dev:main": "tsc -p tsconfig.main.json && electron .",
+    "dev:renderer": "vite",
+    "build": "npm run build:main && npm run build:renderer",
+    "build:main": "tsc -p tsconfig.main.json",
+    "build:renderer": "vite build",
+    "start": "electron .",
+    "verify-api": "tsc -p tsconfig.main.json && node dist/main/main/scripts/verify-api.js"
+  },
+  "keywords": [
+    "electron",
+    "ai",
+    "gemini",
+    "audio",
+    "voicemeeter"
+  ],
+  "author": "Dr. Snuggles Team",
+  "license": "MIT",
+  "dependencies": {
+    "@google/genai": "^1.30.0",
+    "@orama/orama": "^2.0.0",
+    "@orama/plugin-data-persistence": "^2.0.0",
+    "dexie": "^4.0.0",
+    "dotenv": "^17.2.3",
+    "eventemitter3": "^5.0.1",
+    "framer-motion": "^12.23.24",
+    "lucide-react": "^0.555.0",
+    "natural": "^8.1.0",
+    "pdf-parse": "^1.1.1",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "recharts": "^3.5.0",
+    "sentiment": "^5.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@types/ws": "^8.5.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "concurrently": "^9.1.0",
+    "electron": "^33.2.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^6.0.0"
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "CommonJS",
+    "moduleResolution": "node",
+    "outDir": "dist/main",
+    "rootDir": "src",
+    "lib": [
+      "ES2022"
+    ],
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/main/**/*",
+    "src/shared/**/*",
+    "src/lib/**/*",
+    "src/brain/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src/renderer",
+    "src/brain/USAGE_EXAMPLE.ts",
+    "src/brain/test-brain.ts",
+    "src/brain/**/*.md"
+  ]
+}
