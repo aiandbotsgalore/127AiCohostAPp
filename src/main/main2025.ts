@@ -109,6 +109,27 @@ if (API_KEY) {
 console.log('DEBUG: app is', app);
 
 /**
+ * Configuration constants for AI behavior
+ */
+const EMOTION_LEVEL_THRESHOLDS = {
+  LOW: 33,
+  MEDIUM: 66,
+  HIGH: 100
+} as const;
+
+const EMOTION_DESCRIPTORS = {
+  LOW: 'reserved and measured',
+  MEDIUM: 'moderately expressive',
+  HIGH: 'highly expressive and dynamic'
+} as const;
+
+const VAD_SENSITIVITY_CONFIG = {
+  Low: { rmsThreshold: 0.02, minSpeechFrames: 5 },
+  Medium: { rmsThreshold: 0.01, minSpeechFrames: 3 },
+  High: { rmsThreshold: 0.005, minSpeechFrames: 2 }
+} as const;
+
+/**
  * The main application class for Dr. Snuggles (2025 Edition).
  *
  * This modernized version integrates the new Gemini Live Client, advanced audio management,
@@ -186,6 +207,30 @@ class SnugglesApp2025 {
       fs.writeFileSync(getConfigPath(), JSON.stringify(this.config, null, 2));
     } catch (error) {
       console.error('Failed to save config:', error);
+    }
+  }
+
+  /**
+   * Safely send text to Gemini with error handling.
+   * Wraps sendText() calls to prevent uncaught errors and notify the UI on failure.
+   *
+   * @param {string} text - The text to send to Gemini.
+   * @param {string} [context=''] - Context description for logging.
+   * @returns {Promise<boolean>} True if sent successfully, false otherwise.
+   */
+  private async safeSendText(text: string, context: string = ''): Promise<boolean> {
+    try {
+      await this.geminiLiveClient.sendText(text);
+      return true;
+    } catch (error) {
+      const errorMsg = `Failed to send ${context || 'text'}`;
+      console.error(`[Main] ❌ ${errorMsg}:`, error);
+      this.mainWindow?.webContents.send(IPC_CHANNELS.CONNECTION_STATUS, {
+        connected: false,
+        connecting: false,
+        error: `${errorMsg}. Check connection.`
+      });
+      return false;
     }
   }
 
@@ -450,13 +495,13 @@ class SnugglesApp2025 {
       }
     });
 
-    ipcMain.on('voice:style', (_event: IpcMainEvent, styleConfig: { style: string, pace: string, tone: string, accent: string }) => {
+    ipcMain.on('voice:style', async (_event: IpcMainEvent, styleConfig: { style: string, pace: string, tone: string, accent: string }) => {
       console.log(`[Main] 🎭 voice:style:`, styleConfig);
       // Build voice style instruction
       const styleInstruction = `[Voice Direction: Speak in a ${styleConfig.style} style, with a ${styleConfig.pace} pace, ${styleConfig.tone} tone, and ${styleConfig.accent} accent.]`;
       console.log(`[Main] 📝 Injecting style prompt: ${styleInstruction}`);
       // Send as context injection to influence the next response
-      this.geminiLiveClient.sendText(styleInstruction);
+      await this.safeSendText(styleInstruction, 'voice style directive');
     });
 
     ipcMain.on('audio:set-volume', (_event: IpcMainEvent, volumeRaw: number) => {
@@ -475,67 +520,69 @@ class SnugglesApp2025 {
       this.audioManager.setInputMuted(muted);
     });
 
-    ipcMain.on('audio:interrupt', () => {
+    ipcMain.on('audio:interrupt', async () => {
       console.log(`[Main] 🛑 audio:interrupt`);
-      this.geminiLiveClient.sendText(" ");
+      await this.safeSendText(" ", 'interrupt signal');
     });
 
-    ipcMain.on('brain:thinking-mode', (_event: IpcMainEvent, enabled: boolean) => {
+    ipcMain.on('brain:thinking-mode', async (_event: IpcMainEvent, enabled: boolean) => {
       console.log(`[Main] 🧠 brain:thinking-mode: ${enabled}`);
       // Inject thinking mode directive to Gemini
       if (enabled) {
         const thinkingPrompt = '[DIRECTIVE] Take time to think through your response before speaking. Consider multiple perspectives and implications.';
-        this.geminiLiveClient.sendText(thinkingPrompt);
+        await this.safeSendText(thinkingPrompt, 'thinking mode directive');
       } else {
         const fastPrompt = '[DIRECTIVE] Respond quickly and naturally without overthinking. Be spontaneous.';
-        this.geminiLiveClient.sendText(fastPrompt);
+        await this.safeSendText(fastPrompt, 'fast response directive');
       }
     });
 
-    ipcMain.on('brain:thinking-budget', (_event: IpcMainEvent, budget: number) => {
+    ipcMain.on('brain:thinking-budget', async (_event: IpcMainEvent, budget: number) => {
       console.log(`[Main] 🧠 brain:thinking-budget: ${budget}`);
       // Inject token budget directive
       const budgetPrompt = `[DIRECTIVE] Aim for responses of approximately ${budget} tokens or ${Math.floor(budget / 2)} words.`;
-      this.geminiLiveClient.sendText(budgetPrompt);
+      await this.safeSendText(budgetPrompt, 'thinking budget directive');
     });
 
-    ipcMain.on('voice:emotion', (_event: IpcMainEvent, value: number) => {
+    ipcMain.on('voice:emotion', async (_event: IpcMainEvent, value: number) => {
       console.log(`[Main] 🎭 voice:emotion: ${value}`);
-      // Map value (0-100) to emotional range descriptor
-      let emotionLevel = 'neutral';
-      if (value < 33) emotionLevel = 'reserved and measured';
-      else if (value < 66) emotionLevel = 'moderately expressive';
-      else emotionLevel = 'highly expressive and dynamic';
+      // Map value (0-100) to emotional range descriptor using config constants
+      let emotionLevel: string;
+      if (value < EMOTION_LEVEL_THRESHOLDS.LOW) {
+        emotionLevel = EMOTION_DESCRIPTORS.LOW;
+      } else if (value >= EMOTION_LEVEL_THRESHOLDS.MEDIUM) {
+        emotionLevel = EMOTION_DESCRIPTORS.HIGH;
+      } else {
+        emotionLevel = EMOTION_DESCRIPTORS.MEDIUM;
+      }
 
       const emotionPrompt = `[Voice Direction] Speak with ${emotionLevel} emotional range. ${value > 50 ? 'Use varied intonation and enthusiasm.' : 'Maintain professional composure.'}`;
-      this.geminiLiveClient.sendText(emotionPrompt);
+      await this.safeSendText(emotionPrompt, 'emotion directive');
     });
 
     ipcMain.on('audio:vad-sensitivity', (_event: IpcMainEvent, sensitivity: string) => {
       console.log(`[Main] 🎚️ audio:vad-sensitivity: ${sensitivity}`);
-      // Map sensitivity levels to VAD thresholds
-      const thresholds = {
-        'Low': { rmsThreshold: 0.02, minSpeechFrames: 5 },    // Less sensitive, requires louder/longer speech
-        'Medium': { rmsThreshold: 0.01, minSpeechFrames: 3 }, // Default
-        'High': { rmsThreshold: 0.005, minSpeechFrames: 2 }   // More sensitive, picks up quieter speech
-      };
+      // Map sensitivity levels to VAD thresholds using config constants
+      const config = VAD_SENSITIVITY_CONFIG[sensitivity as keyof typeof VAD_SENSITIVITY_CONFIG] || VAD_SENSITIVITY_CONFIG.Medium;
 
-      const config = thresholds[sensitivity as keyof typeof thresholds] || thresholds.Medium;
-      // Note: VAD is inside GeminiLiveClient, so we'd need to expose a method
-      // For now, log the configuration
-      console.log(`[Main] 📊 VAD config updated:`, config);
-      // TODO: Add geminiLiveClient.updateVADConfig(config) method
+      try {
+        // Apply the configuration to the VAD
+        this.geminiLiveClient.updateVADConfig(config);
+        console.log(`[Main] ✅ VAD config applied:`, config);
+      } catch (error) {
+        console.error(`[Main] ❌ Failed to update VAD config:`, error);
+      }
     });
 
-    ipcMain.on('audio:can-interrupt', (_event: IpcMainEvent, canInterrupt: boolean) => {
+    ipcMain.on('audio:can-interrupt', async (_event: IpcMainEvent, canInterrupt: boolean) => {
       console.log(`[Main] 🛑 audio:can-interrupt: ${canInterrupt}`);
       // Control whether user can interrupt AI speech
       if (canInterrupt) {
         const interruptPrompt = '[DIRECTIVE] Allow natural conversation flow. If interrupted, stop speaking immediately and listen.';
-        this.geminiLiveClient.sendText(interruptPrompt);
+        await this.safeSendText(interruptPrompt, 'can-interrupt directive');
       } else {
         const noInterruptPrompt = '[DIRECTIVE] Complete your thoughts fully before yielding the floor. Finish your responses.';
-        this.geminiLiveClient.sendText(noInterruptPrompt);
+        await this.safeSendText(noInterruptPrompt, 'no-interrupt directive');
       }
     });
 
@@ -556,9 +603,9 @@ class SnugglesApp2025 {
       console.log(`[Main] 🐻 avatar:action: ${action}`);
     });
 
-    ipcMain.on('context:inject', (_event: IpcMainEvent, text: string) => {
+    ipcMain.on('context:inject', async (_event: IpcMainEvent, text: string) => {
       console.log(`[Main] 💉 context:inject: ${text}`);
-      this.geminiLiveClient.sendText(text);
+      await this.safeSendText(text, 'context injection');
     });
 
     ipcMain.on('log:message', (_event: IpcMainEvent, { level, args }: { level: string, args: any[] }) => {
@@ -572,8 +619,10 @@ class SnugglesApp2025 {
       // Send the prompt as a context injection to immediately affect behavior
       // Note: For permanent change, would need to reconnect with new systemInstruction
       console.log(`[Main] 💉 Injecting new persona directive...`);
-      this.geminiLiveClient.sendText(`[SYSTEM DIRECTIVE UPDATE] ${prompt.substring(0, 500)}`);
-      console.log(`[Main] ✅ Prompt directive sent`);
+      const success = await this.safeSendText(`[SYSTEM DIRECTIVE UPDATE] ${prompt.substring(0, 500)}`, 'system prompt update');
+      if (success) {
+        console.log(`[Main] ✅ Prompt directive sent`);
+      }
     });
 
     // Forward volume updates

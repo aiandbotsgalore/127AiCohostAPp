@@ -18,6 +18,11 @@ export class AudioPlaybackService {
   // STT fallback
   private recognition: any = null; // Use any to avoid type errors
   private isTextModalityWorking: boolean = false;
+  private recognitionActive: boolean = false; // Track if recognition is currently running
+
+  // Debug logging control
+  private debugAudioEnabled: boolean = false;
+  private audioLogCounter: number = 0;
 
   public testTone(): void {
     if (!this._audioContext) this.start();
@@ -33,7 +38,6 @@ export class AudioPlaybackService {
   }
 
   // Visualizer support
-  private analyserNode: AnalyserNode | null = null;
   private gainNode: GainNode | null = null;
 
   constructor() {
@@ -167,8 +171,10 @@ export class AudioPlaybackService {
         return;
       }
 
-      // 🔍 DEBUG: Log queued audio details
-      console.log(`[AudioPlaybackService] Queueing ${audioData.length} samples. Type: ${audioData.constructor.name}, Sample[0]: ${audioData[0]}`);
+      // 🔍 DEBUG: Log queued audio details (reduced frequency to avoid spam)
+      if (this.debugAudioEnabled || this.audioLogCounter++ % 100 === 0) {
+        console.log(`[AudioPlaybackService] Queueing ${audioData.length} samples. Type: ${audioData.constructor.name}, Sample[0]: ${audioData[0]}`);
+      }
 
       // Validate audio data
       if (!audioData || audioData.length === 0) {
@@ -219,20 +225,30 @@ export class AudioPlaybackService {
         console.error('[AudioPlaybackService] Failed to start audio source:', startError);
         // Reset timeline and try immediate playback
         this.nextStartTime = currentTime;
-        source.start(this.nextStartTime);
+        try {
+          source.start(this.nextStartTime);
+        } catch (retryError) {
+          console.error('[AudioPlaybackService] Retry also failed:', retryError);
+          return; // Give up on this chunk
+        }
       }
 
       // STT fallback: Start recognition if text modality is not working
-      if (this.recognition && !this.isTextModalityWorking) {
+      if (this.recognition && !this.isTextModalityWorking && !this.recognitionActive) {
         try {
           this.recognition.start();
+          this.recognitionActive = true;
           setTimeout(() => {
-            if (this.recognition) {
-              try { this.recognition.stop(); } catch (e) { /* ignore */ }
+            if (this.recognition && this.recognitionActive) {
+              try {
+                this.recognition.stop();
+                this.recognitionActive = false;
+              } catch (e) { /* ignore */ }
             }
           }, buffer.duration * 1000 + 500);
         } catch (startError) {
-          // Recognition might already be running
+          // Recognition might already be running or failed to start
+          this.recognitionActive = false;
         }
       }
 

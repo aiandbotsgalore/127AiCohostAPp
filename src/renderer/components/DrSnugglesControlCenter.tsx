@@ -115,9 +115,11 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const transcriptRef = useRef<HTMLDivElement>(null);
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
+    const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
 
     const audioCaptureService = useRef<AudioCaptureService | null>(null);
     const audioPlaybackService = useRef<AudioPlaybackService | null>(null);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
 
     useEffect(() => {
         try {
@@ -208,7 +210,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         };
     }, []);
 
-    // Load settings from localStorage on mount
+    // Load settings from localStorage on mount with validation
     useEffect(() => {
         try {
             const savedSettings = localStorage.getItem('drSnugglesSettings');
@@ -216,53 +218,118 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                 const settings = JSON.parse(savedSettings);
                 console.log('[GUI] Loading saved settings:', settings);
 
-                // Apply saved settings
-                if (settings.selectedVoice) setSelectedVoice(settings.selectedVoice);
-                if (settings.outputVolume !== undefined) setOutputVolume(settings.outputVolume);
-                if (settings.thinkingMode !== undefined) setThinkingMode(settings.thinkingMode);
-                if (settings.thinkingBudget !== undefined) setThinkingBudget(settings.thinkingBudget);
-                if (settings.emotionalRange !== undefined) setEmotionalRange(settings.emotionalRange);
-                if (settings.canInterrupt !== undefined) setCanInterrupt(settings.canInterrupt);
-                if (settings.listeningSensitivity) setListeningSensitivity(settings.listeningSensitivity);
-                if (settings.voiceStyle) setVoiceStyle(settings.voiceStyle);
-                if (settings.voicePace) setVoicePace(settings.voicePace);
-                if (settings.voiceTone) setVoiceTone(settings.voiceTone);
-                if (settings.voiceAccent) setVoiceAccent(settings.voiceAccent);
-                if (settings.systemPrompt) setSystemPrompt(settings.systemPrompt);
-                if (settings.selectedInputDevice) setSelectedInputDevice(settings.selectedInputDevice);
-                if (settings.selectedOutputDevice) setSelectedOutputDevice(settings.selectedOutputDevice);
+                // Define valid voices
+                const validVoices = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr'];
+                const validSensitivities = ['Low', 'Medium', 'High'];
+
+                // Apply saved settings with validation
+                if (settings.selectedVoice && validVoices.includes(settings.selectedVoice)) {
+                    setSelectedVoice(settings.selectedVoice);
+                }
+                if (typeof settings.outputVolume === 'number' && settings.outputVolume >= 0 && settings.outputVolume <= 100) {
+                    setOutputVolume(settings.outputVolume);
+                }
+                if (typeof settings.thinkingMode === 'boolean') {
+                    setThinkingMode(settings.thinkingMode);
+                }
+                if (typeof settings.thinkingBudget === 'number' && settings.thinkingBudget >= 0 && settings.thinkingBudget <= 10000) {
+                    setThinkingBudget(settings.thinkingBudget);
+                }
+                if (typeof settings.emotionalRange === 'boolean') {
+                    setEmotionalRange(settings.emotionalRange);
+                }
+                if (typeof settings.canInterrupt === 'boolean') {
+                    setCanInterrupt(settings.canInterrupt);
+                }
+                if (settings.listeningSensitivity && validSensitivities.includes(settings.listeningSensitivity)) {
+                    setListeningSensitivity(settings.listeningSensitivity);
+                }
+                if (typeof settings.voiceStyle === 'string') {
+                    setVoiceStyle(settings.voiceStyle);
+                }
+                if (typeof settings.voicePace === 'string') {
+                    setVoicePace(settings.voicePace);
+                }
+                if (typeof settings.voiceTone === 'string') {
+                    setVoiceTone(settings.voiceTone);
+                }
+                if (typeof settings.voiceAccent === 'string') {
+                    setVoiceAccent(settings.voiceAccent);
+                }
+                if (typeof settings.systemPrompt === 'string' && settings.systemPrompt.length > 0 && settings.systemPrompt.length < 10000) {
+                    setSystemPrompt(settings.systemPrompt);
+                }
+                if (typeof settings.selectedInputDevice === 'string') {
+                    setSelectedInputDevice(settings.selectedInputDevice);
+                }
+                if (typeof settings.selectedOutputDevice === 'string') {
+                    setSelectedOutputDevice(settings.selectedOutputDevice);
+                }
             }
         } catch (error) {
-            console.error('[GUI] Failed to load settings from localStorage:', error);
+            if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+                console.error('[GUI] localStorage quota exceeded');
+            } else if (error instanceof SyntaxError) {
+                console.error('[GUI] Invalid JSON in localStorage, clearing settings');
+                localStorage.removeItem('drSnugglesSettings');
+            } else {
+                console.error('[GUI] Failed to load settings from localStorage:', error);
+            }
+        } finally {
+            // Mark settings as loaded to enable saving
+            setSettingsLoaded(true);
         }
     }, []);
 
-    // Save settings to localStorage whenever they change
+    // Save settings to localStorage whenever they change (debounced to reduce writes)
     useEffect(() => {
-        try {
-            const settings = {
-                selectedVoice,
-                outputVolume,
-                thinkingMode,
-                thinkingBudget,
-                emotionalRange,
-                canInterrupt,
-                listeningSensitivity,
-                voiceStyle,
-                voicePace,
-                voiceTone,
-                voiceAccent,
-                systemPrompt,
-                selectedInputDevice,
-                selectedOutputDevice,
-                lastSaved: Date.now()
-            };
-            localStorage.setItem('drSnugglesSettings', JSON.stringify(settings));
-            console.log('[GUI] Settings saved to localStorage');
-        } catch (error) {
-            console.error('[GUI] Failed to save settings to localStorage:', error);
+        // Don't save until settings are loaded to prevent overwriting with defaults
+        if (!settingsLoaded) return;
+
+        // Clear existing timeout
+        if (settingsSaveTimeout.current) {
+            clearTimeout(settingsSaveTimeout.current);
         }
+
+        // Set new timeout for debounced save (500ms)
+        settingsSaveTimeout.current = setTimeout(() => {
+            try {
+                const settings = {
+                    selectedVoice,
+                    outputVolume,
+                    thinkingMode,
+                    thinkingBudget,
+                    emotionalRange,
+                    canInterrupt,
+                    listeningSensitivity,
+                    voiceStyle,
+                    voicePace,
+                    voiceTone,
+                    voiceAccent,
+                    systemPrompt,
+                    selectedInputDevice,
+                    selectedOutputDevice,
+                    lastSaved: Date.now()
+                };
+                localStorage.setItem('drSnugglesSettings', JSON.stringify(settings));
+                console.log('[GUI] Settings saved to localStorage (debounced)');
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+                    console.error('[GUI] localStorage quota exceeded, cannot save settings');
+                } else {
+                    console.error('[GUI] Failed to save settings to localStorage:', error);
+                }
+            }
+        }, 500);
+
+        // Cleanup timeout on unmount
+        return () => {
+            if (settingsSaveTimeout.current) {
+                clearTimeout(settingsSaveTimeout.current);
+            }
+        };
     }, [
+        settingsLoaded,
         selectedVoice,
         outputVolume,
         thinkingMode,
@@ -474,7 +541,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         ipc.send('brain:thinking-mode', !thinkingMode);
     };
 
-    const handleThinkingBudgetChange = (e) => {
+    const handleThinkingBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setThinkingBudget(parseInt(e.target.value));
         ipc.send('brain:thinking-budget', parseInt(e.target.value));
     };
