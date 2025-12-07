@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 
@@ -115,7 +115,6 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const transcriptRef = useRef<HTMLDivElement>(null);
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
-    const avatarCanvasRef = useRef<HTMLCanvasElement>(null);
 
     const audioCaptureService = useRef<AudioCaptureService | null>(null);
     const audioPlaybackService = useRef<AudioPlaybackService | null>(null);
@@ -140,7 +139,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
 
     // Voice options
-    const voices = {
+    const voices: Record<string, string> = {
         'Puck': 'Youthful, energetic, slightly mischievous',
         'Charon': 'Deep, gravelly, authoritative',
         'Kore': 'Warm, nurturing, wise',
@@ -209,6 +208,77 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         };
     }, []);
 
+    // Load settings from localStorage on mount
+    useEffect(() => {
+        try {
+            const savedSettings = localStorage.getItem('drSnugglesSettings');
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                console.log('[GUI] Loading saved settings:', settings);
+
+                // Apply saved settings
+                if (settings.selectedVoice) setSelectedVoice(settings.selectedVoice);
+                if (settings.outputVolume !== undefined) setOutputVolume(settings.outputVolume);
+                if (settings.thinkingMode !== undefined) setThinkingMode(settings.thinkingMode);
+                if (settings.thinkingBudget !== undefined) setThinkingBudget(settings.thinkingBudget);
+                if (settings.emotionalRange !== undefined) setEmotionalRange(settings.emotionalRange);
+                if (settings.canInterrupt !== undefined) setCanInterrupt(settings.canInterrupt);
+                if (settings.listeningSensitivity) setListeningSensitivity(settings.listeningSensitivity);
+                if (settings.voiceStyle) setVoiceStyle(settings.voiceStyle);
+                if (settings.voicePace) setVoicePace(settings.voicePace);
+                if (settings.voiceTone) setVoiceTone(settings.voiceTone);
+                if (settings.voiceAccent) setVoiceAccent(settings.voiceAccent);
+                if (settings.systemPrompt) setSystemPrompt(settings.systemPrompt);
+                if (settings.selectedInputDevice) setSelectedInputDevice(settings.selectedInputDevice);
+                if (settings.selectedOutputDevice) setSelectedOutputDevice(settings.selectedOutputDevice);
+            }
+        } catch (error) {
+            console.error('[GUI] Failed to load settings from localStorage:', error);
+        }
+    }, []);
+
+    // Save settings to localStorage whenever they change
+    useEffect(() => {
+        try {
+            const settings = {
+                selectedVoice,
+                outputVolume,
+                thinkingMode,
+                thinkingBudget,
+                emotionalRange,
+                canInterrupt,
+                listeningSensitivity,
+                voiceStyle,
+                voicePace,
+                voiceTone,
+                voiceAccent,
+                systemPrompt,
+                selectedInputDevice,
+                selectedOutputDevice,
+                lastSaved: Date.now()
+            };
+            localStorage.setItem('drSnugglesSettings', JSON.stringify(settings));
+            console.log('[GUI] Settings saved to localStorage');
+        } catch (error) {
+            console.error('[GUI] Failed to save settings to localStorage:', error);
+        }
+    }, [
+        selectedVoice,
+        outputVolume,
+        thinkingMode,
+        thinkingBudget,
+        emotionalRange,
+        canInterrupt,
+        listeningSensitivity,
+        voiceStyle,
+        voicePace,
+        voiceTone,
+        voiceAccent,
+        systemPrompt,
+        selectedInputDevice,
+        selectedOutputDevice
+    ]);
+
     // Auto-scroll transcript
     useEffect(() => {
         if (transcriptRef.current) {
@@ -245,6 +315,8 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
+        if (!ctx) return; // Null check for context
+
         const dpr = window.devicePixelRatio || 1;
 
         canvas.width = 200 * dpr;
@@ -306,7 +378,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
     // Keyboard shortcuts
     useEffect(() => {
-        const handleKeyPress = (e) => {
+        const handleKeyPress = (e: KeyboardEvent) => {
             if (e.ctrlKey || e.metaKey) {
                 switch (e.key) {
                     case 'Enter':
@@ -1019,7 +1091,8 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                             checked={emotionalRange}
                                             onChange={(e) => {
                                                 setEmotionalRange(e.target.checked);
-                                                ipc.send('brain:emotional-range', e.target.checked);
+                                                // Convert boolean to 0-100 range (off=33, on=66)
+                                                ipc.send('voice:emotion', e.target.checked ? 66 : 33);
                                             }}
                                             style={styles.checkbox}
                                             aria-label="Emotional range"
@@ -1036,7 +1109,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                             checked={canInterrupt}
                                             onChange={(e) => {
                                                 setCanInterrupt(e.target.checked);
-                                                ipc.send('brain:can-interrupt', e.target.checked);
+                                                ipc.send('audio:can-interrupt', e.target.checked);
                                             }}
                                             style={styles.checkbox}
                                             aria-label="Can interrupt"
@@ -1053,7 +1126,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                         value={listeningSensitivity}
                                         onChange={(e) => {
                                             setListeningSensitivity(e.target.value);
-                                            ipc.send('brain:vad-sensitivity', e.target.value);
+                                            ipc.send('audio:vad-sensitivity', e.target.value);
                                         }}
                                         aria-label="VAD sensitivity"
                                     >

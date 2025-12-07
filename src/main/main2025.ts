@@ -482,11 +482,74 @@ class SnugglesApp2025 {
 
     ipcMain.on('brain:thinking-mode', (_event: IpcMainEvent, enabled: boolean) => {
       console.log(`[Main] 🧠 brain:thinking-mode: ${enabled}`);
-      // Future: Update brain configuration
+      // Inject thinking mode directive to Gemini
+      if (enabled) {
+        const thinkingPrompt = '[DIRECTIVE] Take time to think through your response before speaking. Consider multiple perspectives and implications.';
+        this.geminiLiveClient.sendText(thinkingPrompt);
+      } else {
+        const fastPrompt = '[DIRECTIVE] Respond quickly and naturally without overthinking. Be spontaneous.';
+        this.geminiLiveClient.sendText(fastPrompt);
+      }
     });
 
     ipcMain.on('brain:thinking-budget', (_event: IpcMainEvent, budget: number) => {
       console.log(`[Main] 🧠 brain:thinking-budget: ${budget}`);
+      // Inject token budget directive
+      const budgetPrompt = `[DIRECTIVE] Aim for responses of approximately ${budget} tokens or ${Math.floor(budget / 2)} words.`;
+      this.geminiLiveClient.sendText(budgetPrompt);
+    });
+
+    ipcMain.on('voice:emotion', (_event: IpcMainEvent, value: number) => {
+      console.log(`[Main] 🎭 voice:emotion: ${value}`);
+      // Map value (0-100) to emotional range descriptor
+      let emotionLevel = 'neutral';
+      if (value < 33) emotionLevel = 'reserved and measured';
+      else if (value < 66) emotionLevel = 'moderately expressive';
+      else emotionLevel = 'highly expressive and dynamic';
+
+      const emotionPrompt = `[Voice Direction] Speak with ${emotionLevel} emotional range. ${value > 50 ? 'Use varied intonation and enthusiasm.' : 'Maintain professional composure.'}`;
+      this.geminiLiveClient.sendText(emotionPrompt);
+    });
+
+    ipcMain.on('audio:vad-sensitivity', (_event: IpcMainEvent, sensitivity: string) => {
+      console.log(`[Main] 🎚️ audio:vad-sensitivity: ${sensitivity}`);
+      // Map sensitivity levels to VAD thresholds
+      const thresholds = {
+        'Low': { rmsThreshold: 0.02, minSpeechFrames: 5 },    // Less sensitive, requires louder/longer speech
+        'Medium': { rmsThreshold: 0.01, minSpeechFrames: 3 }, // Default
+        'High': { rmsThreshold: 0.005, minSpeechFrames: 2 }   // More sensitive, picks up quieter speech
+      };
+
+      const config = thresholds[sensitivity as keyof typeof thresholds] || thresholds.Medium;
+      // Note: VAD is inside GeminiLiveClient, so we'd need to expose a method
+      // For now, log the configuration
+      console.log(`[Main] 📊 VAD config updated:`, config);
+      // TODO: Add geminiLiveClient.updateVADConfig(config) method
+    });
+
+    ipcMain.on('audio:can-interrupt', (_event: IpcMainEvent, canInterrupt: boolean) => {
+      console.log(`[Main] 🛑 audio:can-interrupt: ${canInterrupt}`);
+      // Control whether user can interrupt AI speech
+      if (canInterrupt) {
+        const interruptPrompt = '[DIRECTIVE] Allow natural conversation flow. If interrupted, stop speaking immediately and listen.';
+        this.geminiLiveClient.sendText(interruptPrompt);
+      } else {
+        const noInterruptPrompt = '[DIRECTIVE] Complete your thoughts fully before yielding the floor. Finish your responses.';
+        this.geminiLiveClient.sendText(noInterruptPrompt);
+      }
+    });
+
+    ipcMain.on('audio:listening-sensitivity', (_event: IpcMainEvent, sensitivity: string) => {
+      console.log(`[Main] 👂 audio:listening-sensitivity: ${sensitivity}`);
+      // Adjust microphone gain threshold (conceptual - actual gain is handled by browser)
+      // This could affect how we process input audio or VAD thresholds
+      const sensitivityPrompt = `[DIRECTIVE] Microphone sensitivity set to ${sensitivity}. ${
+        sensitivity === 'High' ? 'Listen carefully for quiet speech.' :
+        sensitivity === 'Medium' ? 'Standard listening mode.' :
+        'Focus on clear, strong audio signals.'
+      }`;
+      console.log(`[Main] 📝 ${sensitivityPrompt}`);
+      // Note: This is primarily a UI indicator; actual audio processing happens in renderer
     });
 
     ipcMain.on('avatar:action', (_event: IpcMainEvent, action: string) => {
