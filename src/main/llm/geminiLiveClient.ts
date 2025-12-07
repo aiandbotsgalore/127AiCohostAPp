@@ -415,6 +415,17 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
   }
 
   /**
+   * Update VAD configuration at runtime.
+   * Allows dynamic adjustment of voice activity detection sensitivity.
+   *
+   * @param {Partial<import('../audio/vad').VADConfig>} config - Partial VAD configuration to update.
+   */
+  public updateVADConfig(config: { rmsThreshold?: number; minSpeechFrames?: number; minSilenceFrames?: number; zcrThreshold?: number }): void {
+    console.log('[GeminiLiveClient] Updating VAD config:', config);
+    this.vad.updateConfig(config);
+  }
+
+  /**
    * Check if text modality is working (for STT fallback decision).
    * @returns {boolean} True if text has been received from Gemini.
    */

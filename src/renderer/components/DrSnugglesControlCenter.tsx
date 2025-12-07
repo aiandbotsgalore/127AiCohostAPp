@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 
@@ -115,10 +115,11 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const transcriptRef = useRef<HTMLDivElement>(null);
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
-    const avatarCanvasRef = useRef<HTMLCanvasElement>(null);
+    const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
 
     const audioCaptureService = useRef<AudioCaptureService | null>(null);
     const audioPlaybackService = useRef<AudioPlaybackService | null>(null);
+    const [settingsLoaded, setSettingsLoaded] = useState(false);
 
     useEffect(() => {
         try {
@@ -140,7 +141,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
 
     // Voice options
-    const voices = {
+    const voices: Record<string, string> = {
         'Puck': 'Youthful, energetic, slightly mischievous',
         'Charon': 'Deep, gravelly, authoritative',
         'Kore': 'Warm, nurturing, wise',
@@ -209,6 +210,142 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         };
     }, []);
 
+    // Load settings from localStorage on mount with validation
+    useEffect(() => {
+        try {
+            const savedSettings = localStorage.getItem('drSnugglesSettings');
+            if (savedSettings) {
+                const settings = JSON.parse(savedSettings);
+                console.log('[GUI] Loading saved settings:', settings);
+
+                // Define valid voices
+                const validVoices = ['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr'];
+                const validSensitivities = ['Low', 'Medium', 'High'];
+
+                // Apply saved settings with validation
+                if (settings.selectedVoice && validVoices.includes(settings.selectedVoice)) {
+                    setSelectedVoice(settings.selectedVoice);
+                }
+                if (typeof settings.outputVolume === 'number' && settings.outputVolume >= 0 && settings.outputVolume <= 100) {
+                    setOutputVolume(settings.outputVolume);
+                }
+                if (typeof settings.thinkingMode === 'boolean') {
+                    setThinkingMode(settings.thinkingMode);
+                }
+                if (typeof settings.thinkingBudget === 'number' && settings.thinkingBudget >= 0 && settings.thinkingBudget <= 10000) {
+                    setThinkingBudget(settings.thinkingBudget);
+                }
+                if (typeof settings.emotionalRange === 'boolean') {
+                    setEmotionalRange(settings.emotionalRange);
+                }
+                if (typeof settings.canInterrupt === 'boolean') {
+                    setCanInterrupt(settings.canInterrupt);
+                }
+                if (settings.listeningSensitivity && validSensitivities.includes(settings.listeningSensitivity)) {
+                    setListeningSensitivity(settings.listeningSensitivity);
+                }
+                if (typeof settings.voiceStyle === 'string') {
+                    setVoiceStyle(settings.voiceStyle);
+                }
+                if (typeof settings.voicePace === 'string') {
+                    setVoicePace(settings.voicePace);
+                }
+                if (typeof settings.voiceTone === 'string') {
+                    setVoiceTone(settings.voiceTone);
+                }
+                if (typeof settings.voiceAccent === 'string') {
+                    setVoiceAccent(settings.voiceAccent);
+                }
+                if (typeof settings.systemPrompt === 'string' && settings.systemPrompt.length > 0 && settings.systemPrompt.length < 10000) {
+                    setSystemPrompt(settings.systemPrompt);
+                }
+                if (typeof settings.selectedInputDevice === 'string') {
+                    setSelectedInputDevice(settings.selectedInputDevice);
+                }
+                if (typeof settings.selectedOutputDevice === 'string') {
+                    setSelectedOutputDevice(settings.selectedOutputDevice);
+                }
+            }
+        } catch (error) {
+            if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+                console.error('[GUI] localStorage quota exceeded');
+            } else if (error instanceof SyntaxError) {
+                console.error('[GUI] Invalid JSON in localStorage, clearing settings');
+                localStorage.removeItem('drSnugglesSettings');
+            } else {
+                console.error('[GUI] Failed to load settings from localStorage:', error);
+            }
+        } finally {
+            // Mark settings as loaded to enable saving
+            setSettingsLoaded(true);
+        }
+    }, []);
+
+    // Save settings to localStorage whenever they change (debounced to reduce writes)
+    useEffect(() => {
+        // Don't save until settings are loaded to prevent overwriting with defaults
+        if (!settingsLoaded) return;
+
+        // Clear existing timeout
+        if (settingsSaveTimeout.current) {
+            clearTimeout(settingsSaveTimeout.current);
+        }
+
+        // Set new timeout for debounced save (500ms)
+        settingsSaveTimeout.current = setTimeout(() => {
+            try {
+                const settings = {
+                    selectedVoice,
+                    outputVolume,
+                    thinkingMode,
+                    thinkingBudget,
+                    emotionalRange,
+                    canInterrupt,
+                    listeningSensitivity,
+                    voiceStyle,
+                    voicePace,
+                    voiceTone,
+                    voiceAccent,
+                    systemPrompt,
+                    selectedInputDevice,
+                    selectedOutputDevice,
+                    lastSaved: Date.now()
+                };
+                localStorage.setItem('drSnugglesSettings', JSON.stringify(settings));
+                console.log('[GUI] Settings saved to localStorage (debounced)');
+            } catch (error) {
+                if (error instanceof DOMException && error.name === 'QuotaExceededError') {
+                    console.error('[GUI] localStorage quota exceeded, cannot save settings');
+                } else {
+                    console.error('[GUI] Failed to save settings to localStorage:', error);
+                }
+            }
+        }, 500);
+
+        // Cleanup timeout on unmount
+        return () => {
+            if (settingsSaveTimeout.current) {
+                clearTimeout(settingsSaveTimeout.current);
+            }
+        };
+    }, [
+        settingsLoaded,
+        selectedVoice,
+        outputVolume,
+        thinkingMode,
+        thinkingBudget,
+        emotionalRange,
+        canInterrupt,
+        listeningSensitivity,
+        voiceStyle,
+        voicePace,
+        voiceTone,
+        voiceAccent,
+        systemPrompt,
+        selectedInputDevice,
+        selectedOutputDevice
+    ]);
+
     // Auto-scroll transcript
     useEffect(() => {
         if (transcriptRef.current) {
@@ -245,6 +382,8 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         if (!canvas) return;
 
         const ctx = canvas.getContext('2d');
+        if (!ctx) return; // Null check for context
+
         const dpr = window.devicePixelRatio || 1;
 
         canvas.width = 200 * dpr;
@@ -306,7 +445,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
     // Keyboard shortcuts
     useEffect(() => {
-        const handleKeyPress = (e) => {
+        const handleKeyPress = (e: KeyboardEvent) => {
             if (e.ctrlKey || e.metaKey) {
                 switch (e.key) {
                     case 'Enter':
@@ -402,7 +541,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         ipc.send('brain:thinking-mode', !thinkingMode);
     };
 
-    const handleThinkingBudgetChange = (e) => {
+    const handleThinkingBudgetChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setThinkingBudget(parseInt(e.target.value));
         ipc.send('brain:thinking-budget', parseInt(e.target.value));
     };
@@ -1019,7 +1158,8 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                             checked={emotionalRange}
                                             onChange={(e) => {
                                                 setEmotionalRange(e.target.checked);
-                                                ipc.send('brain:emotional-range', e.target.checked);
+                                                // Convert boolean to 0-100 range (off=33, on=66)
+                                                ipc.send('voice:emotion', e.target.checked ? 66 : 33);
                                             }}
                                             style={styles.checkbox}
                                             aria-label="Emotional range"
@@ -1036,7 +1176,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                             checked={canInterrupt}
                                             onChange={(e) => {
                                                 setCanInterrupt(e.target.checked);
-                                                ipc.send('brain:can-interrupt', e.target.checked);
+                                                ipc.send('audio:can-interrupt', e.target.checked);
                                             }}
                                             style={styles.checkbox}
                                             aria-label="Can interrupt"
@@ -1053,7 +1193,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                         value={listeningSensitivity}
                                         onChange={(e) => {
                                             setListeningSensitivity(e.target.value);
-                                            ipc.send('brain:vad-sensitivity', e.target.value);
+                                            ipc.send('audio:vad-sensitivity', e.target.value);
                                         }}
                                         aria-label="VAD sensitivity"
                                     >
