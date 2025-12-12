@@ -1,11 +1,13 @@
 import EventEmitter from 'eventemitter3';
 import WebSocket from 'ws';
+import { BrowserWindow } from 'electron';
 import { AudioManager } from '../audio/audioManager';
 import { ConnectionStatus, ConversationTurn } from '../../shared/types';
 
 interface GeminiClientEvents {
   statusChange: (status: ConnectionStatus) => void;
   message: (message: ConversationTurn) => void;
+  audio: (audioData: Float32Array) => void;
   error: (error: Error) => void;
 }
 
@@ -237,8 +239,16 @@ export class GeminiClient extends EventEmitter<GeminiClientEvents> {
           if (part.inlineData?.mimeType === 'audio/pcm') {
             const audioBuffer = Buffer.from(part.inlineData.data, 'base64');
             // Process audio through resampler
-            this.audioManager.processOutput(audioBuffer);
-            // TODO: Forward audio to renderer for playback via IPC event
+            const audioData = this.audioManager.processOutput(audioBuffer);
+            // Forward audio to renderer for playback via IPC event
+            this.emit('audio', audioData);
+
+            // Direct forwarding to renderer windows (fulfilling specific task requirement)
+            BrowserWindow.getAllWindows().forEach(window => {
+              if (!window.isDestroyed()) {
+                window.webContents.send('genai:audioReceived', audioData);
+              }
+            });
           }
 
           // Also handle text transcription if available
