@@ -1012,6 +1012,18 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const smokeParticles = useRef<any[]>([]);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
 
+    // Refs for animation loop to avoid re-running effect on high-frequency updates
+    const audioLevelRef = useRef(audioLevel);
+    const vadStatusRef = useRef(vadStatus);
+
+    useEffect(() => {
+        audioLevelRef.current = audioLevel;
+    }, [audioLevel]);
+
+    useEffect(() => {
+        vadStatusRef.current = vadStatus;
+    }, [vadStatus]);
+
     const audioCaptureService = useRef<AudioCaptureService | null>(null);
     const audioPlaybackService = useRef<AudioPlaybackService | null>(null);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -1273,6 +1285,9 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
     // Smoke particle animation
     useEffect(() => {
+        // Only run if avatar section is visible
+        if (collapsedSections.has('avatar')) return;
+
         const canvas = smokeCanvasRef.current;
         if (!canvas) return;
 
@@ -1285,10 +1300,10 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         canvas.height = 200 * dpr;
         ctx.scale(dpr, dpr);
 
-        const cigaretteGlow = audioLevel / 100;
+        let animationFrameId: number;
 
         const initParticles = () => {
-            const particleCount = vadStatus.isSpeaking ? 20 : 5;
+            const particleCount = vadStatusRef.current.isSpeaking ? 20 : 5;
             while (smokeParticles.current.length < particleCount) {
                 smokeParticles.current.push({
                     x: 130 + (Math.random() - 0.5) * 10,
@@ -1304,6 +1319,8 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
         const animate = () => {
             ctx.clearRect(0, 0, 200, 200);
+
+            const cigaretteGlow = audioLevelRef.current / 100;
 
             smokeParticles.current = smokeParticles.current.filter(p => {
                 p.x += p.vx;
@@ -1332,11 +1349,17 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
             ctx.fill();
 
             initParticles();
-            requestAnimationFrame(animate);
+            animationFrameId = requestAnimationFrame(animate);
         };
 
         animate();
-    }, [vadStatus.isSpeaking, audioLevel]);
+
+        return () => {
+            if (animationFrameId) {
+                cancelAnimationFrame(animationFrameId);
+            }
+        };
+    }, [collapsedSections]); // Re-run only when visibility changes (canvas unmounts/remounts)
 
     // Keyboard shortcuts
     useEffect(() => {
