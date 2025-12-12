@@ -299,6 +299,7 @@ export const IPC_CHANNELS = {
   GENAI_AUDIO_RECEIVED: 'genai:audioReceived',
   GENAI_LATENCY_UPDATE: 'genai:latencyUpdate',
   GENAI_VAD_STATE: 'genai:vadState',
+  GENAI_INTERRUPTION: 'genai:interruption',
   // New Control Channels
   UPDATE_BRAIN_CONFIG: 'update-brain-config',
   SET_VOICE: 'set-voice',

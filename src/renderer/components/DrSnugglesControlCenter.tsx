@@ -17,6 +17,897 @@ const mockIPC = {
 
 const ipc = (window as any).electron ? (window as any).electron : mockIPC;
 
+var styles = {
+    container: {
+        width: '100vw',
+        height: '100vh',
+        backgroundColor: '#0a0014',
+        color: '#ffffff',
+        fontFamily: "'Segoe UI', 'Roboto', sans-serif",
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+    },
+    header: {
+        height: '60px',
+        background: 'linear-gradient(180deg, rgba(138, 43, 226, 0.15) 0%, rgba(138, 43, 226, 0.05) 100%)',
+        backdropFilter: 'blur(10px)',
+        borderBottom: '1px solid rgba(138, 43, 226, 0.3)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '0 20px',
+        WebkitAppRegion: 'drag',
+    },
+    headerLeft: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '16px',
+        WebkitAppRegion: 'no-drag',
+    },
+    headerCenter: {
+        flex: 1,
+        textAlign: 'center',
+    },
+    headerRight: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        WebkitAppRegion: 'no-drag',
+    },
+    statusGroup: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+    statusIndicator: {
+        width: '12px',
+        height: '12px',
+        borderRadius: '50%',
+        boxShadow: '0 0 10px currentColor',
+    },
+    statusText: {
+        fontSize: '12px',
+        fontWeight: '700',
+        letterSpacing: '1px',
+    },
+    goLiveButton: {
+        background: 'rgba(0, 255, 136, 0.2)',
+        border: '1px solid rgba(0, 255, 136, 0.4)',
+        color: '#00ff88',
+        padding: '10px 20px',
+        borderRadius: '8px',
+        fontSize: '12px',
+        fontWeight: '700',
+        letterSpacing: '1px',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+    },
+    goLiveButtonActive: {
+        background: 'rgba(255, 68, 68, 0.2)',
+        border: '1px solid rgba(255, 68, 68, 0.4)',
+        color: '#ff4444',
+    },
+    title: {
+        fontSize: '16px',
+        fontWeight: '700',
+        letterSpacing: '2px',
+        background: 'linear-gradient(90deg, #00ddff, #8a2be2)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+    },
+    qualityIndicator: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+    qualityBars: {
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: '2px',
+        height: '20px',
+    },
+    qualityBar: {
+        width: '3px',
+        borderRadius: '2px',
+        transition: 'background-color 0.3s',
+    },
+    qualityText: {
+        fontSize: '10px',
+        color: '#888',
+    },
+    settingsButton: {
+        background: 'rgba(138, 43, 226, 0.2)',
+        border: '1px solid rgba(138, 43, 226, 0.4)',
+        color: '#ffffff',
+        width: '36px',
+        height: '36px',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontSize: '16px',
+        transition: 'all 0.2s',
+    },
+    statusBar: {
+        display: 'flex',
+        gap: '20px',
+        padding: '8px 20px',
+        background: 'rgba(0, 0, 0, 0.3)',
+        borderBottom: '1px solid rgba(138, 43, 226, 0.2)',
+    },
+    statusBarItem: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+    statusBarLabel: {
+        fontSize: '9px',
+        color: '#888',
+        letterSpacing: '1px',
+    },
+    statusBarValue: {
+        fontSize: '12px',
+        fontWeight: '600',
+        color: '#00ddff',
+    },
+    miniGraph: {
+        display: 'flex',
+        alignItems: 'flex-end',
+        gap: '1px',
+        height: '16px',
+    },
+    miniGraphBar: {
+        width: '2px',
+        borderRadius: '1px',
+        transition: 'height 0.3s',
+    },
+    mainLayout: {
+        flex: 1,
+        display: 'flex',
+        gap: '16px',
+        padding: '16px',
+        overflow: 'hidden',
+    },
+    leftSidebar: {
+        width: '320px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+        overflow: 'auto',
+    },
+    centerPanel: {
+        flex: 1,
+        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.05), rgba(75, 0, 130, 0.05))',
+        border: '1px solid rgba(138, 43, 226, 0.2)',
+        borderRadius: '16px',
+        backdropFilter: 'blur(10px)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+    },
+    rightSidebar: {
+        width: '340px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+        overflow: 'auto',
+    },
+    section: {
+        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(75, 0, 130, 0.05))',
+        border: '1px solid rgba(138, 43, 226, 0.2)',
+        borderRadius: '12px',
+        backdropFilter: 'blur(10px)',
+        padding: '16px',
+    },
+    sectionHeaderRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '12px',
+        paddingBottom: '8px',
+        borderBottom: '1px solid rgba(138, 43, 226, 0.2)',
+    },
+    sectionHeader: {
+        fontSize: '12px',
+        fontWeight: '700',
+        letterSpacing: '2px',
+        color: '#8a2be2',
+    },
+    collapseBtn: {
+        background: 'none',
+        border: 'none',
+        color: '#8a2be2',
+        cursor: 'pointer',
+        fontSize: '12px',
+        padding: '4px 8px',
+    },
+    avatarSection: {
+        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(75, 0, 130, 0.05))',
+        border: '1px solid rgba(138, 43, 226, 0.2)',
+        borderRadius: '12px',
+        backdropFilter: 'blur(10px)',
+        padding: '20px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '16px',
+    },
+    avatarContainer: {
+        position: 'relative',
+        width: '200px',
+        height: '200px',
+        margin: '0 auto',
+    },
+    smokeCanvas: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        width: '200px',
+        height: '200px',
+        pointerEvents: 'none',
+    },
+    avatarSvg: {
+        width: '200px',
+        height: '200px',
+    },
+    shirtLabel: {
+        position: 'absolute',
+        bottom: '10px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        background: '#000',
+        color: '#fff',
+        padding: '4px 12px',
+        borderRadius: '4px',
+        fontSize: '14px',
+        fontWeight: '700',
+        letterSpacing: '2px',
+    },
+    statusButtons: {
+        display: 'flex',
+        gap: '8px',
+    },
+    statusBtn: {
+        flex: 1,
+        background: 'rgba(138, 43, 226, 0.2)',
+        border: '1px solid rgba(138, 43, 226, 0.4)',
+        color: '#fff',
+        padding: '8px',
+        borderRadius: '6px',
+        fontSize: '10px',
+        fontWeight: '700',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+    },
+    statusBtnActive: {
+        background: 'rgba(0, 255, 136, 0.2)',
+        border: '1px solid rgba(0, 255, 136, 0.4)',
+        color: '#00ff88',
+    },
+    currentStatus: {
+        fontSize: '11px',
+        color: '#888',
+        textAlign: 'center',
+    },
+    voiceSelect: {
+        width: '100%',
+        background: 'rgba(138, 43, 226, 0.1)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '10px',
+        borderRadius: '8px',
+        fontSize: '13px',
+        marginBottom: '8px',
+        cursor: 'pointer',
+    },
+    voiceDescription: {
+        fontSize: '11px',
+        color: '#888',
+        fontStyle: 'italic',
+        marginBottom: '12px',
+    },
+    testButton: {
+        width: '100%',
+        background: 'rgba(0, 221, 255, 0.2)',
+        border: '1px solid rgba(0, 221, 255, 0.4)',
+        color: '#00ddff',
+        padding: '8px',
+        borderRadius: '6px',
+        fontSize: '11px',
+        fontWeight: '700',
+        cursor: 'pointer',
+        marginBottom: '12px',
+    },
+    modControl: {
+        marginBottom: '12px',
+    },
+    modLabel: {
+        fontSize: '10px',
+        color: '#888',
+        display: 'block',
+        marginBottom: '4px',
+    },
+    modSlider: {
+        width: '100%',
+    },
+    styleSelect: {
+        width: '100%',
+        background: 'rgba(30, 30, 60, 0.8)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '6px 10px',
+        borderRadius: '6px',
+        fontSize: '11px',
+        cursor: 'pointer',
+    },
+    audioMeter: {
+        marginBottom: '12px',
+    },
+    meterLabel: {
+        fontSize: '10px',
+        color: '#888',
+        letterSpacing: '1px',
+        marginBottom: '6px',
+    },
+    meterBar: {
+        width: '100%',
+        height: '8px',
+        background: 'rgba(0, 0, 0, 0.3)',
+        borderRadius: '4px',
+        overflow: 'hidden',
+    },
+    meterFill: {
+        height: '100%',
+        transition: 'width 0.1s',
+        borderRadius: '4px',
+    },
+    audioControls: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '12px',
+    },
+    audioControlRow: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+    audioLabel: {
+        fontSize: '10px',
+        color: '#888',
+        minWidth: '50px',
+    },
+    muteBtn: {
+        background: 'rgba(138, 43, 226, 0.2)',
+        border: '1px solid rgba(138, 43, 226, 0.4)',
+        color: '#fff',
+        width: '36px',
+        height: '36px',
+        borderRadius: '8px',
+        cursor: 'pointer',
+        fontSize: '16px',
+        transition: 'all 0.2s',
+    },
+    muteBtnActive: {
+        background: 'rgba(255, 68, 68, 0.3)',
+        borderColor: 'rgba(255, 68, 68, 0.5)',
+    },
+    volumeSlider: {
+        flex: 1,
+    },
+    volumeValue: {
+        fontSize: '11px',
+        minWidth: '40px',
+        textAlign: 'right',
+        color: '#00ddff',
+    },
+    interruptBtn: {
+        flex: 1,
+        background: 'rgba(255, 68, 68, 0.2)',
+        border: '1px solid rgba(255, 68, 68, 0.4)',
+        color: '#ff4444',
+        padding: '8px',
+        borderRadius: '8px',
+        fontSize: '11px',
+        fontWeight: '700',
+        cursor: 'pointer',
+    },
+    profileSelect: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginBottom: '12px',
+    },
+    profileLabel: {
+        fontSize: '11px',
+        color: '#888',
+    },
+    profileDropdown: {
+        flex: 1,
+        background: 'rgba(138, 43, 226, 0.1)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '6px',
+        borderRadius: '6px',
+        fontSize: '11px',
+        cursor: 'pointer',
+    },
+    saveProfileBtn: {
+        background: 'rgba(138, 43, 226, 0.2)',
+        border: '1px solid rgba(138, 43, 226, 0.4)',
+        color: '#fff',
+        width: '32px',
+        height: '32px',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontSize: '14px',
+    },
+    controlItem: {
+        marginBottom: '12px',
+    },
+    controlLabel: {
+        fontSize: '12px',
+        color: '#ddd',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginBottom: '4px',
+    },
+    checkbox: {
+        width: '16px',
+        height: '16px',
+        cursor: 'pointer',
+    },
+    activeBadge: {
+        marginLeft: 'auto',
+        background: 'rgba(0, 255, 136, 0.2)',
+        border: '1px solid rgba(0, 255, 136, 0.4)',
+        padding: '2px 6px',
+        borderRadius: '8px',
+        fontSize: '8px',
+        color: '#00ff88',
+        letterSpacing: '1px',
+    },
+    budgetControl: {
+        marginTop: '8px',
+        marginLeft: '24px',
+    },
+    budgetSlider: {
+        width: '100%',
+        marginBottom: '4px',
+    },
+    budgetValue: {
+        fontSize: '11px',
+        color: '#8a2be2',
+    },
+    sensitivitySelect: {
+        width: '100%',
+        background: 'rgba(138, 43, 226, 0.1)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '8px',
+        borderRadius: '6px',
+        fontSize: '12px',
+        marginTop: '6px',
+        cursor: 'pointer',
+    },
+    analytics: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+    },
+    analyticsRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        fontSize: '11px',
+        color: '#ddd',
+    },
+    analyticsValue: {
+        fontWeight: '700',
+        color: '#00ddff',
+    },
+    transcriptTools: {
+        display: 'flex',
+        gap: '8px',
+        alignItems: 'center',
+    },
+    searchInput: {
+        background: 'rgba(0, 0, 0, 0.3)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '6px 10px',
+        borderRadius: '6px',
+        fontSize: '11px',
+        outline: 'none',
+        width: '200px',
+    },
+    toolBtn: {
+        background: 'rgba(138, 43, 226, 0.2)',
+        border: '1px solid rgba(138, 43, 226, 0.4)',
+        color: '#fff',
+        width: '28px',
+        height: '28px',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontSize: '12px',
+    },
+    transcript: {
+        flex: 1,
+        overflow: 'auto',
+        padding: '20px',
+    },
+    transcriptMessage: {
+        marginBottom: '20px',
+        padding: '12px',
+        background: 'rgba(0, 0, 0, 0.2)',
+        borderRadius: '8px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+    },
+    transcriptHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        marginBottom: '8px',
+        alignItems: 'center',
+    },
+    transcriptSpeaker: {
+        fontSize: '11px',
+        fontWeight: '700',
+        letterSpacing: '1px',
+    },
+    transcriptActions: {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+    },
+    copyBtn: {
+        background: 'none',
+        border: 'none',
+        color: '#888',
+        cursor: 'pointer',
+        fontSize: '12px',
+        padding: '4px',
+    },
+    transcriptTime: {
+        fontSize: '10px',
+        color: '#666',
+    },
+    transcriptText: {
+        fontSize: '13px',
+        lineHeight: '1.5',
+        color: '#ddd',
+    },
+    charCounter: {
+        fontSize: '10px',
+        color: '#888',
+        textAlign: 'right',
+        marginBottom: '4px',
+    },
+    contextInput: {
+        width: '100%',
+        minHeight: '80px',
+        background: 'rgba(0, 0, 0, 0.3)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '10px',
+        borderRadius: '8px',
+        fontSize: '12px',
+        resize: 'vertical',
+        marginBottom: '12px',
+        fontFamily: 'inherit',
+    },
+    presetButtons: {
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: '8px',
+        marginBottom: '12px',
+    },
+    presetBtn: {
+        background: 'rgba(138, 43, 226, 0.2)',
+        border: '1px solid rgba(138, 43, 226, 0.4)',
+        color: '#fff',
+        padding: '8px',
+        borderRadius: '6px',
+        fontSize: '10px',
+        fontWeight: '600',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+    },
+    addPresetBtn: {
+        background: 'rgba(0, 221, 255, 0.2)',
+        border: '1px solid rgba(0, 221, 255, 0.4)',
+        color: '#00ddff',
+        padding: '8px',
+        borderRadius: '6px',
+        fontSize: '14px',
+        cursor: 'pointer',
+    },
+    sendButton: {
+        width: '100%',
+        background: 'rgba(0, 221, 255, 0.2)',
+        border: '1px solid rgba(0, 221, 255, 0.4)',
+        color: '#00ddff',
+        padding: '10px',
+        borderRadius: '8px',
+        fontSize: '12px',
+        fontWeight: '700',
+        letterSpacing: '1px',
+        cursor: 'pointer',
+        marginBottom: '12px',
+    },
+    historyHeader: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: '10px',
+        color: '#888',
+        letterSpacing: '1px',
+        marginBottom: '8px',
+    },
+    clearHistoryBtn: {
+        background: 'none',
+        border: 'none',
+        color: '#888',
+        cursor: 'pointer',
+        fontSize: '12px',
+    },
+    contextHistory: {
+        maxHeight: '120px',
+        overflow: 'auto',
+    },
+    contextHistoryItem: {
+        padding: '8px',
+        background: 'rgba(0, 0, 0, 0.2)',
+        borderRadius: '6px',
+        marginBottom: '6px',
+        fontSize: '11px',
+    },
+    contextHistoryText: {
+        color: '#ddd',
+        marginBottom: '4px',
+    },
+    contextHistoryTime: {
+        color: '#666',
+        fontSize: '9px',
+    },
+    promptTools: {
+        display: 'flex',
+        gap: '8px',
+        marginBottom: '8px',
+    },
+    promptSelect: {
+        flex: 1,
+        background: 'rgba(138, 43, 226, 0.1)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '6px',
+        borderRadius: '6px',
+        fontSize: '11px',
+        cursor: 'pointer',
+    },
+    promptToolBtn: {
+        background: 'rgba(138, 43, 226, 0.2)',
+        border: '1px solid rgba(138, 43, 226, 0.4)',
+        color: '#fff',
+        width: '32px',
+        height: '32px',
+        borderRadius: '6px',
+        cursor: 'pointer',
+        fontSize: '14px',
+    },
+    systemPromptEditor: {
+        width: '100%',
+        minHeight: '150px',
+        background: 'rgba(0, 0, 0, 0.3)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '10px',
+        borderRadius: '8px',
+        fontSize: '12px',
+        lineHeight: '1.5',
+        resize: 'vertical',
+        marginBottom: '12px',
+        fontFamily: 'inherit',
+    },
+    applyButton: {
+        width: '100%',
+        background: 'rgba(0, 255, 136, 0.2)',
+        border: '1px solid rgba(0, 255, 136, 0.4)',
+        color: '#00ff88',
+        padding: '10px',
+        borderRadius: '8px',
+        fontSize: '12px',
+        fontWeight: '700',
+        letterSpacing: '1px',
+        cursor: 'pointer',
+    },
+    factCheckTools: {
+        display: 'flex',
+        gap: '8px',
+        marginBottom: '12px',
+    },
+    factFilterSelect: {
+        flex: 1,
+        background: 'rgba(138, 43, 226, 0.1)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '6px',
+        borderRadius: '6px',
+        fontSize: '11px',
+        cursor: 'pointer',
+    },
+    factCheckFeed: {
+        maxHeight: '400px',
+        overflow: 'auto',
+    },
+    factCheckItem: {
+        padding: '12px',
+        background: 'rgba(0, 0, 0, 0.2)',
+        borderRadius: '8px',
+        marginBottom: '10px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+    },
+    factCheckHeader: {
+        display: 'flex',
+        gap: '8px',
+        marginBottom: '8px',
+        alignItems: 'center',
+    },
+    verdictBadge: {
+        padding: '4px 10px',
+        borderRadius: '12px',
+        fontSize: '9px',
+        fontWeight: '700',
+        letterSpacing: '1px',
+        border: '1px solid',
+    },
+    confidenceBadge: {
+        fontSize: '10px',
+        color: '#888',
+    },
+    pinButton: {
+        marginLeft: 'auto',
+        background: 'none',
+        border: 'none',
+        fontSize: '14px',
+        cursor: 'pointer',
+    },
+    factCheckClaim: {
+        fontSize: '12px',
+        color: '#ddd',
+        marginBottom: '6px',
+        lineHeight: '1.4',
+    },
+    factCheckReason: {
+        fontSize: '11px',
+        color: '#888',
+        fontStyle: 'italic',
+        marginBottom: '6px',
+    },
+    factCheckTime: {
+        fontSize: '9px',
+        color: '#666',
+    },
+    settingsOverlay: {
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(0, 0, 0, 0.7)',
+        backdropFilter: 'blur(5px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+    },
+    settingsPanel: {
+        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.15), rgba(75, 0, 130, 0.1))',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        borderRadius: '16px',
+        backdropFilter: 'blur(20px)',
+        width: '600px',
+        maxHeight: '80vh',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+    },
+    settingsPanelHeader: {
+        padding: '20px',
+        borderBottom: '1px solid rgba(138, 43, 226, 0.3)',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    settingsTitle: {
+        margin: 0,
+        fontSize: '16px',
+        fontWeight: '700',
+        letterSpacing: '2px',
+        background: 'linear-gradient(90deg, #00ddff, #8a2be2)',
+        WebkitBackgroundClip: 'text',
+        WebkitTextFillColor: 'transparent',
+    },
+    settingsCloseBtn: {
+        background: 'none',
+        border: 'none',
+        color: '#fff',
+        fontSize: '24px',
+        cursor: 'pointer',
+        width: '32px',
+        height: '32px',
+    },
+    settingsContent: {
+        padding: '20px',
+        overflow: 'auto',
+    },
+    settingsSection: {
+        marginBottom: '24px',
+    },
+    settingsSectionTitle: {
+        fontSize: '13px',
+        fontWeight: '700',
+        letterSpacing: '1px',
+        color: '#8a2be2',
+        marginBottom: '12px',
+    },
+    settingRow: {
+        marginBottom: '12px',
+    },
+    settingLabel: {
+        fontSize: '12px',
+        color: '#ddd',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px',
+        marginBottom: '6px',
+    },
+    deviceSelect: {
+        width: '100%',
+        background: 'rgba(138, 43, 226, 0.1)',
+        border: '1px solid rgba(138, 43, 226, 0.3)',
+        color: '#fff',
+        padding: '8px',
+        borderRadius: '6px',
+        fontSize: '12px',
+        cursor: 'pointer',
+    },
+    settingsSlider: {
+        width: '100%',
+    },
+    shortcutList: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+    },
+    shortcutRow: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: '12px',
+        color: '#ddd',
+    },
+    kbd: {
+        background: 'rgba(0, 0, 0, 0.4)',
+        border: '1px solid rgba(138, 43, 226, 0.4)',
+        padding: '4px 8px',
+        borderRadius: '4px',
+        fontSize: '11px',
+        fontFamily: 'monospace',
+        color: '#00ddff',
+    },
+    errorToast: {
+        position: 'fixed',
+        top: '80px',
+        right: '20px',
+        background: 'rgba(255, 68, 68, 0.9)',
+        border: '1px solid rgba(255, 68, 68, 1)',
+        borderRadius: '12px',
+        padding: '12px 20px',
+        fontSize: '12px',
+        fontWeight: '600',
+        backdropFilter: 'blur(10px)',
+        animation: 'slideIn 0.3s ease',
+        zIndex: 999,
+    },
+};
+
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
     const [isLive, setIsLive] = useState(false);
@@ -112,6 +1003,10 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const [blinkState, setBlinkState] = useState(false);
     const [mouthOpen, setMouthOpen] = useState(0);
 
+    // Prompt Saving State
+    const [isSavePromptOpen, setIsSavePromptOpen] = useState(false);
+    const [promptNameInput, setPromptNameInput] = useState('');
+
     const transcriptRef = useRef<HTMLDivElement>(null);
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
@@ -180,14 +1075,14 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
             setAudioLevel(data.level);
         }));
 
-        unsubscribers.push(ipc.on('vad:status', (event, data) => {
+        unsubscribers.push(ipc.on('genai:vadState', (event, data) => {
             setVadStatus(data);
             if (data.isSpeaking) {
                 setSpeakingTime(prev => prev + 0.8);
             }
         }));
 
-        unsubscribers.push(ipc.on('message:received', (event, message) => {
+        unsubscribers.push(ipc.on('message-received', (event, message) => {
             setMessages(prev => [...prev, message].slice(-100));
             setMessageCount(prev => prev + 1);
         }));
@@ -196,7 +1091,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
             setFactChecks(prev => [claim, ...prev].slice(0, 50));
         }));
 
-        unsubscribers.push(ipc.on('genai:latency-update', (event, data) => {
+        unsubscribers.push(ipc.on('genai:latencyUpdate', (event, data) => {
             setLatency(data.totalRoundtrip);
             setLatencyHistory(prev => [...prev, data.totalRoundtrip].slice(-30));
         }));
@@ -476,6 +1371,26 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         return () => window.removeEventListener('keydown', handleKeyPress);
     }, [contextInput]);
 
+    // Listen for transcript events from STT
+    useEffect(() => {
+        const handleTranscript = (event: any) => {
+            const { text, role } = event.detail;
+            console.log(`[GUI] Transcript received (${role}):`, text);
+
+            const newMessage = {
+                id: `msg-${Date.now()}-${Math.random()}`,
+                role: role,
+                text: text,
+                timestamp: Date.now()
+            };
+
+            setMessages(prev => [...prev, newMessage]);
+        };
+
+        window.addEventListener('snugglesTranscript', handleTranscript);
+        return () => window.removeEventListener('snugglesTranscript', handleTranscript);
+    }, []);
+
     // Handlers
     const handleTestAudio = () => {
         console.log('[GUI] Testing Audio Playback...');
@@ -572,9 +1487,14 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     };
 
     const handleSavePrompt = () => {
-        const name = prompt('Enter a name for this prompt:');
-        if (name) {
-            setSavedPrompts(prev => [...prev, { name, content: systemPrompt }]);
+        setPromptNameInput('');
+        setIsSavePromptOpen(true);
+    };
+
+    const confirmSavePrompt = () => {
+        if (promptNameInput.trim()) {
+            setSavedPrompts(prev => [...prev, { name: promptNameInput.trim(), content: systemPrompt }]);
+            setIsSavePromptOpen(false);
         }
     };
 
@@ -1638,6 +2558,77 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                 </div>
             )}
 
+
+
+            {/* Save Prompt Dialog */}
+            {isSavePromptOpen && (
+                <div style={styles.settingsOverlay} onClick={() => setIsSavePromptOpen(false)}>
+                    <div style={{ ...styles.settingsPanel, height: 'auto', maxHeight: 'none' }} onClick={(e) => e.stopPropagation()}>
+                        <div style={styles.settingsPanelHeader}>
+                            <h2 style={styles.settingsTitle}>💾 SAVE SYSTEM PROMPT</h2>
+                            <button
+                                style={styles.settingsCloseBtn}
+                                onClick={() => setIsSavePromptOpen(false)}
+                            >
+                                ✕
+                            </button>
+                        </div>
+                        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                            <div>
+                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: '#ccc' }}>Template Name:</label>
+                                <input
+                                    type="text"
+                                    value={promptNameInput}
+                                    onChange={(e) => setPromptNameInput(e.target.value)}
+                                    placeholder="e.g., Physics Lecturer Mode"
+                                    style={{
+                                        width: '100%',
+                                        padding: '10px',
+                                        backgroundColor: 'rgba(0,0,0,0.3)',
+                                        border: '1px solid rgba(138, 43, 226, 0.3)',
+                                        borderRadius: '6px',
+                                        color: '#fff',
+                                        fontSize: '14px',
+                                        outline: 'none'
+                                    }}
+                                    autoFocus
+                                    onKeyDown={(e) => e.key === 'Enter' && confirmSavePrompt()}
+                                />
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                                <button
+                                    onClick={() => setIsSavePromptOpen(false)}
+                                    style={{
+                                        padding: '8px 16px',
+                                        backgroundColor: 'transparent',
+                                        border: '1px solid #666',
+                                        color: '#ccc',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer'
+                                    }}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    onClick={confirmSavePrompt}
+                                    style={{
+                                        padding: '8px 16px',
+                                        backgroundColor: '#8a2be2',
+                                        border: 'none',
+                                        color: '#fff',
+                                        borderRadius: '6px',
+                                        cursor: 'pointer',
+                                        fontWeight: 'bold'
+                                    }}
+                                >
+                                    Save Template
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* Error Toast */}
             {errorToast && (
                 <div style={styles.errorToast}>
@@ -1650,977 +2641,87 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     );
 };
 
-const styles = {
-    container: {
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: '#0a0014',
-        color: '#ffffff',
-        fontFamily: "'Segoe UI', 'Roboto', sans-serif",
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-    },
-    header: {
-        height: '60px',
-        background: 'linear-gradient(180deg, rgba(138, 43, 226, 0.15) 0%, rgba(138, 43, 226, 0.05) 100%)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid rgba(138, 43, 226, 0.3)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 20px',
-        WebkitAppRegion: 'drag',
-    },
-    headerLeft: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '16px',
-        WebkitAppRegion: 'no-drag',
-    },
-    headerCenter: {
-        flex: 1,
-        textAlign: 'center',
-    },
-    headerRight: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        WebkitAppRegion: 'no-drag',
-    },
-    statusGroup: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    statusIndicator: {
-        width: '12px',
-        height: '12px',
-        borderRadius: '50%',
-        boxShadow: '0 0 10px currentColor',
-    },
-    statusText: {
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-    },
-    goLiveButton: {
-        background: 'rgba(0, 255, 136, 0.2)',
-        border: '1px solid rgba(0, 255, 136, 0.4)',
-        color: '#00ff88',
-        padding: '10px 20px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-    },
-    goLiveButtonActive: {
-        background: 'rgba(255, 68, 68, 0.2)',
-        border: '1px solid rgba(255, 68, 68, 0.4)',
-        color: '#ff4444',
-    },
-    title: {
-        fontSize: '16px',
-        fontWeight: '700',
-        letterSpacing: '2px',
-        background: 'linear-gradient(90deg, #00ddff, #8a2be2)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-    },
-    qualityIndicator: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    qualityBars: {
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: '2px',
-        height: '20px',
-    },
-    qualityBar: {
-        width: '3px',
-        borderRadius: '2px',
-        transition: 'background-color 0.3s',
-    },
-    qualityText: {
-        fontSize: '10px',
-        color: '#888',
-    },
-    settingsButton: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#ffffff',
-        width: '36px',
-        height: '36px',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        fontSize: '16px',
-        transition: 'all 0.2s',
-    },
-    statusBar: {
-        display: 'flex',
-        gap: '20px',
-        padding: '8px 20px',
-        background: 'rgba(0, 0, 0, 0.3)',
-        borderBottom: '1px solid rgba(138, 43, 226, 0.2)',
-    },
-    statusBarItem: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    statusBarLabel: {
-        fontSize: '9px',
-        color: '#888',
-        letterSpacing: '1px',
-    },
-    statusBarValue: {
-        fontSize: '12px',
-        fontWeight: '600',
-        color: '#00ddff',
-    },
-    miniGraph: {
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: '1px',
-        height: '16px',
-    },
-    miniGraphBar: {
-        width: '2px',
-        borderRadius: '1px',
-        transition: 'height 0.3s',
-    },
-    mainLayout: {
-        flex: 1,
-        display: 'flex',
-        gap: '16px',
-        padding: '16px',
-        overflow: 'hidden',
-    },
-    leftSidebar: {
-        width: '320px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-        overflow: 'auto',
-    },
-    centerPanel: {
-        flex: 1,
-        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.05), rgba(75, 0, 130, 0.05))',
-        border: '1px solid rgba(138, 43, 226, 0.2)',
-        borderRadius: '16px',
-        backdropFilter: 'blur(10px)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-    },
-    rightSidebar: {
-        width: '340px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-        overflow: 'auto',
-    },
-    section: {
-        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(75, 0, 130, 0.05))',
-        border: '1px solid rgba(138, 43, 226, 0.2)',
-        borderRadius: '12px',
-        backdropFilter: 'blur(10px)',
-        padding: '16px',
-    },
-    sectionHeaderRow: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '12px',
-        paddingBottom: '8px',
-        borderBottom: '1px solid rgba(138, 43, 226, 0.2)',
-    },
-    sectionHeader: {
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '2px',
-        color: '#8a2be2',
-    },
-    collapseBtn: {
-        background: 'none',
-        border: 'none',
-        color: '#8a2be2',
-        cursor: 'pointer',
-        fontSize: '12px',
-        padding: '4px 8px',
-    },
-    avatarSection: {
-        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(75, 0, 130, 0.05))',
-        border: '1px solid rgba(138, 43, 226, 0.2)',
-        borderRadius: '12px',
-        backdropFilter: 'blur(10px)',
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-    },
-    avatarContainer: {
-        position: 'relative',
-        width: '200px',
-        height: '200px',
-        margin: '0 auto',
-    },
-    smokeCanvas: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '200px',
-        height: '200px',
-        pointerEvents: 'none',
-    },
-    avatarSvg: {
-        width: '200px',
-        height: '200px',
-    },
-    shirtLabel: {
-        position: 'absolute',
-        bottom: '10px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        background: '#000',
-        color: '#fff',
-        padding: '4px 12px',
-        borderRadius: '4px',
-        fontSize: '14px',
-        fontWeight: '700',
-        letterSpacing: '2px',
-    },
-    statusButtons: {
-        display: 'flex',
-        gap: '8px',
-    },
-    statusBtn: {
-        flex: 1,
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '10px',
-        fontWeight: '700',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-    },
-    statusBtnActive: {
-        background: 'rgba(0, 255, 136, 0.2)',
-        border: '1px solid rgba(0, 255, 136, 0.4)',
-        color: '#00ff88',
-    },
-    currentStatus: {
-        fontSize: '11px',
-        color: '#888',
-        textAlign: 'center',
-    },
-    voiceSelect: {
-        width: '100%',
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '13px',
-        marginBottom: '8px',
-        cursor: 'pointer',
-    },
-    voiceDescription: {
-        fontSize: '11px',
-        color: '#888',
-        fontStyle: 'italic',
-        marginBottom: '12px',
-    },
-    testButton: {
-        width: '100%',
-        background: 'rgba(0, 221, 255, 0.2)',
-        border: '1px solid rgba(0, 221, 255, 0.4)',
-        color: '#00ddff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        fontWeight: '700',
-        cursor: 'pointer',
-        marginBottom: '12px',
-    },
-    modControl: {
-        marginBottom: '12px',
-    },
-    modLabel: {
-        fontSize: '10px',
-        color: '#888',
-        display: 'block',
-        marginBottom: '4px',
-    },
-    modSlider: {
-        width: '100%',
-    },
-    styleSelect: {
-        width: '100%',
-        background: 'rgba(30, 30, 60, 0.8)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px 10px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        cursor: 'pointer',
-    },
-    audioMeter: {
-        marginBottom: '12px',
-    },
-    meterLabel: {
-        fontSize: '10px',
-        color: '#888',
-        letterSpacing: '1px',
-        marginBottom: '6px',
-    },
-    meterBar: {
-        width: '100%',
-        height: '8px',
-        background: 'rgba(0, 0, 0, 0.3)',
-        borderRadius: '4px',
-        overflow: 'hidden',
-    },
-    meterFill: {
-        height: '100%',
-        transition: 'width 0.1s',
-        borderRadius: '4px',
-    },
-    audioControls: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-    },
-    audioControlRow: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    audioLabel: {
-        fontSize: '10px',
-        color: '#888',
-        minWidth: '50px',
-    },
-    muteBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        width: '36px',
-        height: '36px',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        fontSize: '16px',
-        transition: 'all 0.2s',
-    },
-    muteBtnActive: {
-        background: 'rgba(255, 68, 68, 0.3)',
-        borderColor: 'rgba(255, 68, 68, 0.5)',
-    },
-    volumeSlider: {
-        flex: 1,
-    },
-    volumeValue: {
-        fontSize: '11px',
-        minWidth: '40px',
-        textAlign: 'right',
-        color: '#00ddff',
-    },
-    interruptBtn: {
-        flex: 1,
-        background: 'rgba(255, 68, 68, 0.2)',
-        border: '1px solid rgba(255, 68, 68, 0.4)',
-        color: '#ff4444',
-        padding: '8px',
-        borderRadius: '8px',
-        fontSize: '11px',
-        fontWeight: '700',
-        cursor: 'pointer',
-    },
-    profileSelect: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '12px',
-    },
-    profileLabel: {
-        fontSize: '11px',
-        color: '#888',
-    },
-    profileDropdown: {
-        flex: 1,
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        cursor: 'pointer',
-    },
-    saveProfileBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        width: '32px',
-        height: '32px',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        fontSize: '14px',
-    },
-    controlItem: {
-        marginBottom: '12px',
-    },
-    controlLabel: {
-        fontSize: '12px',
-        color: '#ddd',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '4px',
-    },
-    checkbox: {
-        width: '16px',
-        height: '16px',
-        cursor: 'pointer',
-    },
-    activeBadge: {
-        marginLeft: 'auto',
-        background: 'rgba(0, 255, 136, 0.2)',
-        border: '1px solid rgba(0, 255, 136, 0.4)',
-        padding: '2px 6px',
-        borderRadius: '8px',
-        fontSize: '8px',
-        color: '#00ff88',
-        letterSpacing: '1px',
-    },
-    budgetControl: {
-        marginTop: '8px',
-        marginLeft: '24px',
-    },
-    budgetSlider: {
-        width: '100%',
-        marginBottom: '4px',
-    },
-    budgetValue: {
-        fontSize: '11px',
-        color: '#8a2be2',
-    },
-    sensitivitySelect: {
-        width: '100%',
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '12px',
-        marginTop: '6px',
-        cursor: 'pointer',
-    },
-    analytics: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-    },
-    analyticsRow: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontSize: '11px',
-        color: '#ddd',
-    },
-    analyticsValue: {
-        fontWeight: '700',
-        color: '#00ddff',
-    },
-    transcriptTools: {
-        display: 'flex',
-        gap: '8px',
-        alignItems: 'center',
-    },
-    searchInput: {
-        background: 'rgba(0, 0, 0, 0.3)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px 10px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        outline: 'none',
-        width: '200px',
-    },
-    toolBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        width: '28px',
-        height: '28px',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        fontSize: '12px',
-    },
-    transcript: {
-        flex: 1,
-        overflow: 'auto',
-        padding: '20px',
-    },
-    transcriptMessage: {
-        marginBottom: '20px',
-        padding: '12px',
-        background: 'rgba(0, 0, 0, 0.2)',
-        borderRadius: '8px',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-    },
-    transcriptHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        marginBottom: '8px',
-        alignItems: 'center',
-    },
-    transcriptSpeaker: {
-        fontSize: '11px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-    },
-    transcriptActions: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    copyBtn: {
-        background: 'none',
-        border: 'none',
-        color: '#888',
-        cursor: 'pointer',
-        fontSize: '12px',
-        padding: '4px',
-    },
-    transcriptTime: {
-        fontSize: '10px',
-        color: '#666',
-    },
-    transcriptText: {
-        fontSize: '13px',
-        lineHeight: '1.5',
-        color: '#ddd',
-    },
-    charCounter: {
-        fontSize: '10px',
-        color: '#888',
-        textAlign: 'right',
-        marginBottom: '4px',
-    },
-    contextInput: {
-        width: '100%',
-        minHeight: '80px',
-        background: 'rgba(0, 0, 0, 0.3)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        resize: 'vertical',
-        marginBottom: '12px',
-        fontFamily: 'inherit',
-    },
-    presetButtons: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '8px',
-        marginBottom: '12px',
-    },
-    presetBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '10px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-    },
-    addPresetBtn: {
-        background: 'rgba(0, 221, 255, 0.2)',
-        border: '1px solid rgba(0, 221, 255, 0.4)',
-        color: '#00ddff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '14px',
-        cursor: 'pointer',
-    },
-    sendButton: {
-        width: '100%',
-        background: 'rgba(0, 221, 255, 0.2)',
-        border: '1px solid rgba(0, 221, 255, 0.4)',
-        color: '#00ddff',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        cursor: 'pointer',
-        marginBottom: '12px',
-    },
-    historyHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontSize: '10px',
-        color: '#888',
-        letterSpacing: '1px',
-        marginBottom: '8px',
-    },
-    clearHistoryBtn: {
-        background: 'none',
-        border: 'none',
-        color: '#888',
-        cursor: 'pointer',
-        fontSize: '12px',
-    },
-    contextHistory: {
-        maxHeight: '120px',
-        overflow: 'auto',
-    },
-    contextHistoryItem: {
-        padding: '8px',
-        background: 'rgba(0, 0, 0, 0.2)',
-        borderRadius: '6px',
-        marginBottom: '6px',
-        fontSize: '11px',
-    },
-    contextHistoryText: {
-        color: '#ddd',
-        marginBottom: '4px',
-    },
-    contextHistoryTime: {
-        color: '#666',
-        fontSize: '9px',
-    },
-    promptTools: {
-        display: 'flex',
-        gap: '8px',
-        marginBottom: '8px',
-    },
-    promptSelect: {
-        flex: 1,
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        cursor: 'pointer',
-    },
-    promptToolBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        width: '32px',
-        height: '32px',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        fontSize: '14px',
-    },
-    systemPromptEditor: {
-        width: '100%',
-        minHeight: '150px',
-        background: 'rgba(0, 0, 0, 0.3)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        lineHeight: '1.5',
-        resize: 'vertical',
-        marginBottom: '12px',
-        fontFamily: 'inherit',
-    },
-    applyButton: {
-        width: '100%',
-        background: 'rgba(0, 255, 136, 0.2)',
-        border: '1px solid rgba(0, 255, 136, 0.4)',
-        color: '#00ff88',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        cursor: 'pointer',
-    },
-    factCheckTools: {
-        display: 'flex',
-        gap: '8px',
-        marginBottom: '12px',
-    },
-    factFilterSelect: {
-        flex: 1,
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        cursor: 'pointer',
-    },
-    factCheckFeed: {
-        maxHeight: '400px',
-        overflow: 'auto',
-    },
-    factCheckItem: {
-        padding: '12px',
-        background: 'rgba(0, 0, 0, 0.2)',
-        borderRadius: '8px',
-        marginBottom: '10px',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-    },
-    factCheckHeader: {
-        display: 'flex',
-        gap: '8px',
-        marginBottom: '8px',
-        alignItems: 'center',
-    },
-    verdictBadge: {
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '9px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        border: '1px solid',
-    },
-    confidenceBadge: {
-        fontSize: '10px',
-        color: '#888',
-    },
-    pinButton: {
-        marginLeft: 'auto',
-        background: 'none',
-        border: 'none',
-        fontSize: '14px',
-        cursor: 'pointer',
-    },
-    factCheckClaim: {
-        fontSize: '12px',
-        color: '#ddd',
-        marginBottom: '6px',
-        lineHeight: '1.4',
-    },
-    factCheckReason: {
-        fontSize: '11px',
-        color: '#888',
-        fontStyle: 'italic',
-        marginBottom: '6px',
-    },
-    factCheckTime: {
-        fontSize: '9px',
-        color: '#666',
-    },
-    settingsOverlay: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0, 0, 0, 0.7)',
-        backdropFilter: 'blur(5px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-    },
-    settingsPanel: {
-        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.15), rgba(75, 0, 130, 0.1))',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        borderRadius: '16px',
-        backdropFilter: 'blur(20px)',
-        width: '600px',
-        maxHeight: '80vh',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    settingsPanelHeader: {
-        padding: '20px',
-        borderBottom: '1px solid rgba(138, 43, 226, 0.3)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    settingsTitle: {
-        margin: 0,
-        fontSize: '16px',
-        fontWeight: '700',
-        letterSpacing: '2px',
-        background: 'linear-gradient(90deg, #00ddff, #8a2be2)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-    },
-    settingsCloseBtn: {
-        background: 'none',
-        border: 'none',
-        color: '#fff',
-        fontSize: '24px',
-        cursor: 'pointer',
-        width: '32px',
-        height: '32px',
-    },
-    settingsContent: {
-        padding: '20px',
-        overflow: 'auto',
-    },
-    settingsSection: {
-        marginBottom: '24px',
-    },
-    settingsSectionTitle: {
-        fontSize: '13px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        color: '#8a2be2',
-        marginBottom: '12px',
-    },
-    settingRow: {
-        marginBottom: '12px',
-    },
-    settingLabel: {
-        fontSize: '12px',
-        color: '#ddd',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '6px',
-    },
-    deviceSelect: {
-        width: '100%',
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '12px',
-        cursor: 'pointer',
-    },
-    settingsSlider: {
-        width: '100%',
-    },
-    shortcutList: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-    },
-    shortcutRow: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontSize: '12px',
-        color: '#ddd',
-    },
-    kbd: {
-        background: 'rgba(0, 0, 0, 0.4)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontSize: '11px',
-        fontFamily: 'monospace',
-        color: '#00ddff',
-    },
-    errorToast: {
-        position: 'fixed',
-        top: '80px',
-        right: '20px',
-        background: 'rgba(255, 68, 68, 0.9)',
-        border: '1px solid rgba(255, 68, 68, 1)',
-        borderRadius: '12px',
-        padding: '12px 20px',
-        fontSize: '12px',
-        fontWeight: '600',
-        backdropFilter: 'blur(10px)',
-        animation: 'slideIn 0.3s ease',
-        zIndex: 999,
-    },
-};
 
-// CSS Animations
 const styleSheet = document.createElement('style');
 styleSheet.textContent = `
-  @keyframes pulse {
-    0%, 100% { opacity: 1; box-shadow: 0 0 10px currentColor; }
-    50% { opacity: 0.6; box-shadow: 0 0 20px currentColor; }
-  }
-  
-  @keyframes slideIn {
-    from { transform: translateX(100%); opacity: 0; }
-    to { transform: translateX(0); opacity: 1; }
-  }
-  
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #00ddff;
-    cursor: pointer;
-    box-shadow: 0 0 8px rgba(0, 221, 255, 0.5);
-  }
-  
-  input[type="range"]::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    border-radius: 50%;
-    background: #00ddff;
-    cursor: pointer;
-    border: none;
-    box-shadow: 0 0 8px rgba(0, 221, 255, 0.5);
-  }
-  
-  button:hover {
-    transform: scale(1.03);
-    box-shadow: 0 0 15px rgba(138, 43, 226, 0.4);
-  }
-  
-  button:active {
-    transform: scale(0.97);
-  }
-  
-  select option {
-    background: #1a0033;
-    color: #ffffff;
-  }
-  
-  ::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
-  }
-  
-  ::-webkit-scrollbar-track {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 3px;
-  }
-  
-  ::-webkit-scrollbar-thumb {
-    background: rgba(138, 43, 226, 0.5);
-    border-radius: 3px;
-  }
-  
-  ::-webkit-scrollbar-thumb:hover {
-    background: rgba(138, 43, 226, 0.7);
-  }
-  
-  textarea:focus, select:focus, input:focus {
-    outline: 1px solid rgba(138, 43, 226, 0.5);
+            @keyframes pulse {
+                0 %, 100 % { opacity: 1; box- shadow: 0 0 10px currentColor; }
+            50% {opacity: 0.6; box-shadow: 0 0 20px currentColor; }
   }
 
-  .high-contrast {
-    filter: contrast(1.3) brightness(1.1);
+            @keyframes slideIn {
+                from {transform: translateX(100%); opacity: 0; }
+            to {transform: translateX(0); opacity: 1; }
   }
 
-  .high-contrast button,
-  .high-contrast select,
-  .high-contrast input {
-    border-width: 2px;
+            input[type="range"]::-webkit-slider-thumb {
+                -webkit - appearance: none;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00ddff;
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(0, 221, 255, 0.5);
   }
-`;
+
+            input[type="range"]::-moz-range-thumb {
+                width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: #00ddff;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 0 8px rgba(0, 221, 255, 0.5);
+  }
+
+            button:hover {
+                transform: scale(1.03);
+            box-shadow: 0 0 15px rgba(138, 43, 226, 0.4);
+  }
+
+            button:active {
+                transform: scale(0.97);
+  }
+
+            select option {
+                background: #1a0033;
+            color: #ffffff;
+  }
+
+            ::-webkit-scrollbar {
+                width: 6px;
+            height: 6px;
+  }
+
+            ::-webkit-scrollbar-track {
+                background: rgba(0, 0, 0, 0.2);
+            border-radius: 3px;
+  }
+
+            ::-webkit-scrollbar-thumb {
+                background: rgba(138, 43, 226, 0.5);
+            border-radius: 3px;
+  }
+
+            ::-webkit-scrollbar-thumb:hover {
+                background: rgba(138, 43, 226, 0.7);
+  }
+
+            textarea:focus, select:focus, input:focus {
+                outline: 1px solid rgba(138, 43, 226, 0.5);
+  }
+
+            .high-contrast {
+                filter: contrast(1.3) brightness(1.1);
+  }
+
+            .high-contrast button,
+            .high-contrast select,
+            .high-contrast input {
+                border - width: 2px;
+  }
+            `;
 document.head.appendChild(styleSheet);
 
 export default DrSnugglesControlCenter;
+

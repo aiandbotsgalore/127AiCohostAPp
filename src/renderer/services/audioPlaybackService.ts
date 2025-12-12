@@ -7,6 +7,7 @@
  * Features:
  * - STT fallback for transcript when text modality fails
  * - Visualizer support via analyser node
+ * - Encoded audio decoding (MP3 support)
  */
 
 export class AudioPlaybackService {
@@ -39,6 +40,7 @@ export class AudioPlaybackService {
 
   // Visualizer support
   private gainNode: GainNode | null = null;
+  private activeSources: Set<AudioBufferSourceNode> = new Set();
 
   constructor() {
     console.log('[AudioPlaybackService] Initialized');
@@ -128,9 +130,16 @@ export class AudioPlaybackService {
       this._isActive = true;
 
       // Listen for incoming audio
-      window.snugglesAPI.onGenaiAudioReceived((audioData: Float32Array) => {
+      window.snugglesAPI.onGenaiAudioReceived((audioData: Float32Array | ArrayBuffer | Uint8Array) => {
         this.queueAudio(audioData);
       });
+
+      // Listen for interruptions
+      if (window.snugglesAPI.onGenaiInterruption) {
+        window.snugglesAPI.onGenaiInterruption(() => {
+          this.cancelPlayback();
+        });
+      }
 
       console.log('[AudioPlaybackService] Audio playback ready');
     } catch (error) {
@@ -140,10 +149,11 @@ export class AudioPlaybackService {
 
   /**
    * Queues an audio chunk for playback.
+   * Supports raw PCM (Float32Array) or encoded audio (ArrayBuffer/Uint8Array) which will be decoded.
    *
-   * @param {Float32Array} audioData - The audio samples to play.
+   * @param {Float32Array | ArrayBuffer | Uint8Array} audioData - The audio samples to play.
    */
-  private queueAudio(audioData: Float32Array): void {
+  private async queueAudio(audioData: Float32Array | ArrayBuffer | Uint8Array): Promise<void> {
     if (!this._isActive || !this._audioContext || !this.gainNode) {
       console.warn('[AudioPlaybackService] Cannot queue audio - service not active or missing context');
       return;
@@ -153,117 +163,93 @@ export class AudioPlaybackService {
       // Ensure context is running (browser autoplay policy)
       if (this._audioContext.state === 'suspended') {
         console.log('[AudioPlaybackService] Resuming suspended AudioContext...');
-        this._audioContext.resume().catch(e => {
-          console.error('[AudioPlaybackService] Failed to resume context:', e);
-          // Trigger error event for UI notification
-          window.dispatchEvent(new CustomEvent('snugglesError', {
-            detail: { message: 'Audio context suspended. Click to resume.', type: 'audio_playback' }
-          }));
-        });
-        return; // Wait for next chunk after resume
+        await this._audioContext.resume();
       }
 
-      // Verify AudioContext is in good state
-      if (this._audioContext.state === 'closed') {
-        console.error('[AudioPlaybackService] AudioContext is closed - restarting service');
-        this.stop();
-        this.start();
-        return;
-      }
+      let pcmData: Float32Array;
 
-      // 🔍 DEBUG: Log queued audio details (reduced frequency to avoid spam)
-      if (this.debugAudioEnabled || this.audioLogCounter++ % 100 === 0) {
-        console.log(`[AudioPlaybackService] Queueing ${audioData.length} samples. Type: ${audioData.constructor.name}, Sample[0]: ${audioData[0]}`);
-      }
+      // Handle encoded audio (MP3/WAV from ElevenLabs)
+      if (audioData instanceof ArrayBuffer || audioData instanceof Uint8Array) {
+        // Convert Uint8Array to ArrayBuffer if needed
+        const arrayBuffer = audioData instanceof Uint8Array
+          ? audioData.buffer.slice(audioData.byteOffset, audioData.byteOffset + audioData.byteLength) // Create copy
+          : audioData;
 
-      // Validate audio data
-      if (!audioData || audioData.length === 0) {
-        console.warn('[AudioPlaybackService] Received empty audio data, skipping');
-        return;
-      }
-
-      const buffer = this._audioContext.createBuffer(1, audioData.length, this.sampleRate);
-
-      // Handle both Float32Array and regular Array
-      if (audioData instanceof Float32Array) {
-        buffer.getChannelData(0).set(audioData);
-      } else if (Array.isArray(audioData)) {
-        console.warn('[AudioPlaybackService] Received Array instead of Float32Array, converting...');
-        buffer.getChannelData(0).set(new Float32Array(audioData));
-      } else {
-        // Fallback for object/map (e.g. {0: 0.1, ...})
-        console.warn('[AudioPlaybackService] Received unknown type, attempting conversion...');
+        // Decode audio data using Web Audio API (async)
         try {
-          const array = Float32Array.from(Object.values(audioData));
-          buffer.getChannelData(0).set(array);
-        } catch (e) {
-          console.error('[AudioPlaybackService] Failed to convert audio data:', e);
+          const audioBuffer = await this._audioContext.decodeAudioData(arrayBuffer);
+          pcmData = audioBuffer.getChannelData(0); // Use first channel
+        } catch (decodeError) {
+          console.error('[AudioPlaybackService] MP3 decode failed:', decodeError);
           return;
         }
       }
+      // Handle raw PCM (Float32Array from Gemini)
+      else if (audioData instanceof Float32Array) {
+        pcmData = audioData;
+      } else if (Array.isArray(audioData)) {
+        pcmData = new Float32Array(audioData);
+      } else {
+        // Fallback for serialized object/map
+        pcmData = Float32Array.from(Object.values(audioData));
+      }
+
+      if (!pcmData || pcmData.length === 0) return;
+
+      const buffer = this._audioContext.createBuffer(1, pcmData.length, this._audioContext.sampleRate);
+      buffer.copyToChannel(pcmData, 0);
 
       const source = this._audioContext.createBufferSource();
       source.buffer = buffer;
       source.connect(this.gainNode);
 
-      // Add error handler for source
-      source.onended = () => {
-        // Clean up on successful completion
-      };
+      // Track source for cancellation
+      this.activeSources.add(source);
 
       // Schedule playback
-      // If nextStartTime is in the past, reset it to now to avoid massive catch-up speedups
       const currentTime = this._audioContext.currentTime;
-      if (this.nextStartTime < currentTime) {
-        console.log('[AudioPlaybackService] Resetting playback timeline (was behind by', currentTime - this.nextStartTime, 'seconds)');
-        this.nextStartTime = currentTime;
-      }
+      // Ensure we schedule in the future, with a small buffer
+      const startTime = Math.max(currentTime + 0.05, this.nextStartTime);
 
-      try {
-        source.start(this.nextStartTime);
-      } catch (startError) {
-        console.error('[AudioPlaybackService] Failed to start audio source:', startError);
-        // Reset timeline and try immediate playback
-        this.nextStartTime = currentTime;
-        try {
-          source.start(this.nextStartTime);
-        } catch (retryError) {
-          console.error('[AudioPlaybackService] Retry also failed:', retryError);
-          return; // Give up on this chunk
-        }
-      }
+      source.start(startTime);
+      this.nextStartTime = startTime + buffer.duration;
 
-      // STT fallback: Start recognition if text modality is not working
-      if (this.recognition && !this.isTextModalityWorking && !this.recognitionActive) {
-        try {
-          this.recognition.start();
-          this.recognitionActive = true;
-          setTimeout(() => {
-            if (this.recognition && this.recognitionActive) {
-              try {
-                this.recognition.stop();
-                this.recognitionActive = false;
-              } catch (e) { /* ignore */ }
-            }
-          }, buffer.duration * 1000 + 500);
-        } catch (startError) {
-          // Recognition might already be running or failed to start
-          this.recognitionActive = false;
-        }
-      }
-
-      // Advance time for the next chunk
-      this.nextStartTime += buffer.duration;
+      // Clean up on ended
+      source.onended = () => {
+        this.activeSources.delete(source);
+      };
 
     } catch (error) {
-      console.error('[AudioPlaybackService] Error in queueAudio:', error);
-      // Attempt recovery
+      console.error('[AudioPlaybackService] Playback/Decoding error:', error);
+      // Attempt recovery if context is bad
       if (this._audioContext && this._audioContext.state === 'closed') {
-        console.log('[AudioPlaybackService] Attempting to restart audio service...');
         this.stop();
         this.start();
       }
     }
+  }
+
+  /**
+   * Cancel all currently playing audio.
+   * Used when user interrupts.
+   */
+  public cancelPlayback(): void {
+    if (!this._isActive || !this._audioContext) return;
+
+    if (this.activeSources.size > 0) {
+      console.log(`[AudioPlaybackService] 🛑 Canceling playback (${this.activeSources.size} sources)`);
+
+      // Stop all active sources
+      this.activeSources.forEach(source => {
+        try {
+          source.stop();
+        } catch (e) { /* ignore already stopped */ }
+      });
+      this.activeSources.clear();
+    }
+
+    // Reset timing to now
+    this.nextStartTime = this._audioContext.currentTime;
   }
 
   /**
@@ -275,6 +261,8 @@ export class AudioPlaybackService {
     if (this.recognition) {
       try { this.recognition.stop(); } catch (e) { /* ignore */ }
     }
+
+    this.cancelPlayback();
 
     if (this.gainNode) {
       this.gainNode.disconnect();

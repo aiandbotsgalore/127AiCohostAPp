@@ -81,6 +81,8 @@ export interface GeminiLiveClientEvents {
   error: (error: Error) => void;
   reconnecting: (attempt: number, delayMs: number) => void;
   message: (message: { role: string; text: string; timestamp: number }) => void;
+  userTranscription: (transcription: string, timestamp: number) => void; // NEW: User speech transcription
+  interruption: () => void; // NEW: User started speaking
 }
 
 /**
@@ -90,7 +92,10 @@ export interface SessionConfig {
   sessionSummaries?: string[];
   knowledgeContext?: string;
   personalityMix?: { comedy: number; research: number; energy: number };
+  responseModalities?: Modality[]; // Allow overriding modalities
 }
+
+
 
 /**
  * Client for the Gemini Live API (2025 Implementation).
@@ -138,6 +143,12 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
       console.log('[GeminiLiveClient] 🧠 Brain integration ACTIVE');
     }
 
+    // Hybrid VAD events
+    this.vad.on('speech', () => {
+      console.log('[GeminiLiveClient] 🎤 Local VAD speech detected. Emitting interruption signal.');
+      this.emit('interruption');
+    });
+
     // Hybrid VAD: Trigger end-of-turn when local VAD detects silence
     // This ensures responsiveness even if server-side VAD lags
     this.vad.on('silence', () => {
@@ -165,92 +176,118 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
     this.lastConfig = config;
     this.shouldReconnect = true;
 
-    try {
-      console.log('[GeminiLiveClient] Starting session...');
+    // Helper to attempt connection with specific config
+    const tryConnect = async (isRetry = false) => {
+      try {
+        console.log(`[GeminiLiveClient] Starting session... (Retry: ${isRetry})`);
 
-      // Build system instruction (async if brain is active)
-      let systemInstruction = await this.buildSystemInstruction(config);
+        // Build system instruction (async if brain is active)
+        let systemInstruction = await this.buildSystemInstruction(config);
 
-      // 🔍 DEBUG: Log system instruction stats
-      console.log(`[GeminiLiveClient] System Instruction Length: ${systemInstruction.length} chars`);
-      console.log(`[GeminiLiveClient] System Instruction Preview: ${systemInstruction.substring(0, 100)}...`);
-
-      // 🔍 DEBUG: FORCE SIMPLE MODE to rule out instruction issues
-      // Uncomment the line below to test if the instruction is the problem
-      // systemInstruction = "You are Dr. Snuggles. Keep responses short.";
-
-      // Build the config for logging/debugging
-      const liveConfig = {
-        responseModalities: [Modality.AUDIO],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: this.currentVoice
-            }
-          }
-        },
-        systemInstruction: systemInstruction
-      };
-
-      // 🔍 DIAGNOSTIC: Log full configuration
-      GeminiDiagnostics.logConfig({ model: MODEL_NAME, ...liveConfig }, 'Live API Request');
-
-      this.session = await this.genAI.live.connect({
-        model: MODEL_NAME,
-        config: liveConfig,
-        callbacks: {
-          onopen: () => {
-            this.isConnected = true;
-            this.reconnectAttempts = 0;
-            this.emit('connected');
-            console.log('[GeminiLiveClient] ✅ Connected successfully');
-            console.log('[GeminiLiveClient] Session Keys:', Object.keys(this.session || {}));
-            try { console.log('[GeminiLiveClient] Session Proto:', Object.getOwnPropertyNames(Object.getPrototypeOf(this.session))); } catch (e) { }
-          },
-          onmessage: (e: any) => this.handleMessage(e),
-          onerror: (e: any) => {
-            console.error('[GeminiLiveClient] Error:', e.error);
-            this.emit('error', e.error);
-            if (this.shouldReconnect) {
-              this.scheduleReconnect();
-            }
-          },
-          onclose: (e: any) => {
-            // 🔍 DIAGNOSTIC: Parse and log the close code with actionable info
-            const diagnosis = GeminiDiagnostics.parseCloseCode(e.code, e.reason);
-            console.error(`[GeminiLiveClient] Connection closed:\n   ${diagnosis}`);
-            this.isConnected = false;
-            this.emit('disconnected', e.reason || 'Connection closed');
-
-            // KILL SWITCH: Stop reconnecting on auth/API key errors (code 1007, 1008)
-            if (e.code === 1007 || e.code === 1008 || (e.reason && e.reason.toLowerCase().includes('api key'))) {
-              console.error('[GeminiLiveClient] 🛑 AUTH/CONFIG ERROR - Stopping reconnection attempts');
-              console.error(`[GeminiLiveClient] 💡 Try one of these models: ${KNOWN_LIVE_MODELS.slice(0, 3).join(', ')}`);
-              this.shouldReconnect = false;
-              this.emit('error', new Error(`Connection failed: ${e.reason}`));
-              return;
-            }
-
-            // Reconnect on abnormal closure (but not on normal close or auth errors)
-            if (this.shouldReconnect && e.code !== 1000 && e.code !== 1001) {
-              this.scheduleReconnect();
-            }
-          }
+        // FALLBACK: If this is a retry after invalid argument, use simple instruction
+        if (isRetry) {
+          console.warn('[GeminiLiveClient] ⚠️ USING FALLBACK SYSTEM INSTRUCTION due to previous error');
+          systemInstruction = "You are Dr. Snuggles. You are helpful, sarcastic, and scientific. Keep answers short.";
         }
-      });
 
-      console.log('[GeminiLiveClient] Session connecting...');
-    } catch (error) {
-      console.error('[GeminiLiveClient] Connection failed:', error);
-      this.emit('error', error as Error);
+        // 🔍 DEBUG: Log system instruction stats
+        console.log(`[GeminiLiveClient] System Instruction Length: ${systemInstruction.length} chars`);
 
-      // Attempt reconnection
-      if (this.shouldReconnect) {
-        this.scheduleReconnect();
+        // Build the config for logging/debugging
+        const responseModalities = config.responseModalities || [Modality.AUDIO];
+        const isAudioMode = responseModalities.includes(Modality.AUDIO);
+
+        // 🔄 DYNAMIC MODEL SELECTION:
+        // Native-audio models don't support TEXT-only mode, so switch models based on modality
+        const selectedModel = isAudioMode
+          ? 'gemini-2.5-flash-native-audio-preview-09-2025'  // Native audio for AUDIO mode
+          : 'gemini-2.0-flash-exp';  // Standard model for TEXT mode (custom voice)
+
+        console.log(`[GeminiLiveClient] Selected model: ${selectedModel} (Audio mode: ${isAudioMode})`);
+
+        // Only include speechConfig if AUDIO modality is requested
+        // TEXT-only mode cannot have voice settings
+        const liveConfig: any = {
+          responseModalities,
+          systemInstruction: { parts: [{ text: systemInstruction }] }
+        };
+
+        if (isAudioMode) {
+          liveConfig.speechConfig = {
+            voiceConfig: {
+              prebuiltVoiceConfig: {
+                voiceName: this.currentVoice
+              }
+            }
+          };
+        }
+
+        // 🔍 DIAGNOSTIC: Log full configuration
+        GeminiDiagnostics.logConfig({ model: selectedModel, ...liveConfig }, 'Live API Request');
+
+        this.session = await this.genAI.live.connect({
+          model: selectedModel,  // Dynamic model selection
+          config: liveConfig,
+          callbacks: {
+            onopen: () => {
+              this.isConnected = true;
+              this.reconnectAttempts = 0;
+              this.emit('connected');
+              console.log('[GeminiLiveClient] ✅ Connected successfully');
+              console.log('[GeminiLiveClient] Session Keys:', Object.keys(this.session || {}));
+            },
+            onmessage: (e: any) => this.handleMessage(e),
+            onerror: (e: any) => {
+              console.error('[GeminiLiveClient] Error:', e.error);
+              this.emit('error', e.error);
+              if (this.shouldReconnect) {
+                this.scheduleReconnect();
+              }
+            },
+            onclose: (e: any) => {
+              // Parse and log the close code with actionable diagnostic information
+              const diagnosis = GeminiDiagnostics.parseCloseCode(e.code, e.reason);
+              console.error(`[GeminiLiveClient] Connection closed:\n   ${diagnosis}`);
+              this.isConnected = false;
+              this.emit('disconnected', e.reason || 'Connection closed');
+
+              // KILL SWITCH: Stop reconnecting on auth/API key errors (code 1007, 1008)
+              if (e.code === 1007 || e.code === 1008 || (e.reason && e.reason.toLowerCase().includes('api key'))) {
+                console.error('[GeminiLiveClient] 🛑 AUTH/CONFIG ERROR - Stopping reconnection attempts');
+                console.error(`[GeminiLiveClient] 💡 Try one of these models: ${KNOWN_LIVE_MODELS.slice(0, 3).join(', ')}`);
+                this.shouldReconnect = false;
+                this.emit('error', new Error(`Connection failed: ${e.reason}`));
+                return;
+              }
+
+              // Reconnect on abnormal closure (but not on normal close or auth errors)
+              if (this.shouldReconnect && e.code !== 1000 && e.code !== 1001) {
+                this.scheduleReconnect();
+              }
+            }
+          }
+        });
+
+        console.log('[GeminiLiveClient] Session connecting...');
+      } catch (error: any) {
+        console.error('[GeminiLiveClient] Connection failed:', error);
+
+        // Check for "invalid argument" and retry ONCE with simple config
+        if (!isRetry && (error.message?.includes('invalid argument') || error.message?.includes('InvalidArgument'))) {
+          console.log('[GeminiLiveClient] ⚠️ Caught Invalid Argument error. Retrying with simplified config...');
+          await tryConnect(true);
+          return;
+        }
+
+        this.emit('error', error as Error);
+        if (this.shouldReconnect && !isRetry) { // Don't schedule reconnect if fallback also failed immediately
+          this.scheduleReconnect();
+        }
+        throw error;
       }
+    };
 
-      throw error;
-    }
+    await tryConnect(false);
   }
 
   /**
@@ -441,7 +478,7 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
    *
    * @param {any} event - The message event.
    */
-  private handleMessage(event: any): void {
+  private async handleMessage(event: any): Promise<void> {
     try {
       // The SDK already parses JSON messages for us
       const message = event.data || event;
@@ -485,60 +522,113 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
         // 🔍 DEBUG: Log full server content to find where audio is hiding
         console.log('[GeminiLiveClient] 🔍 SERVER CONTENT:', JSON.stringify(message.serverContent, null, 2));
 
-        if (message.serverContent.modelTurn?.parts) {
-          // Signal VAD that Gemini is speaking (only when actual content arrives)
-          this.vad.setGeminiSpeaking(true);
-          let textContent = '';
-
-          for (const part of message.serverContent.modelTurn.parts) {
-            // 🔍 DEBUG: Log part MIME types to see if audio is present
-            console.log('[GeminiLiveClient] Processing part. MimeType:', part.inlineData?.mimeType, 'Text:', part.text ? '(text content)' : 'none');
-            console.log('[GeminiLiveClient] 🔍 FULL PART:', JSON.stringify(part, null, 2));
-
-            // Handle Audio
-            if (part.inlineData?.mimeType?.startsWith('audio/')) {
-              const base64Audio = part.inlineData.data;
-
-              // Convert: base64 → 24kHz Int16 → Float32 → 48kHz Float32
-              const audioData = AudioResampler.prepareForPlayback(
-                base64Audio,
-                AudioResamplers.DOWNSTREAM
-              );
-
-              // Calculate latency
-              const latency = this.lastChunkSentTime > 0
-                ? performance.now() - this.lastChunkSentTime
-                : 0;
-
-              console.log(`[GeminiLiveClient] 📥 Received audio (${audioData.length} samples, latency: ${latency.toFixed(2)}ms)`);
-
-              this.emit('audioReceived', audioData, latency);
-            }
-
-            // Handle Text (for UI transcript)
+        // 🎤 DETECT USER TRANSCRIPTION: Check if this is user's speech being transcribed
+        // The API may send transcriptions in userTurn or as intermediate results
+        if (message.serverContent.userTurn?.parts) {
+          let userTranscription = '';
+          for (const part of message.serverContent.userTurn.parts) {
             if (part.text) {
-              textContent += part.text;
+              userTranscription += part.text;
             }
           }
-
-          // Emit text message if present
-          if (textContent) {
-            this._isTextModalityWorking = true; // Flag for STT fallback decision
-            console.log('[GeminiLiveClient] 📝 Received text:', textContent.substring(0, 50) + '...');
+          if (userTranscription) {
+            console.log('🎤 [USER SAID]:', userTranscription);
+            console.log('[GeminiLiveClient] 🔊 USER TRANSCRIPTION:', userTranscription);
+            this.emit('userTranscription', userTranscription, Date.now());
             this.emit('message', {
-              role: 'assistant',
-              text: textContent,
+              role: 'user',
+              text: userTranscription,
               timestamp: Date.now()
             });
+            // 🧠 BRAIN MEMORY: Add user speech to short-term buffer
+            this.brain?.addToBuffer('user', userTranscription);
+          }
+        }
+      }
+
+      if (message.serverContent.modelTurn?.parts) {
+        // Signal VAD that Gemini is speaking (only when actual content arrives)
+        this.vad.setGeminiSpeaking(true);
+        let textContent = '';
+
+        for (const part of message.serverContent.modelTurn.parts) {
+          // 🔍 DEBUG: Log part MIME types to see if audio is present
+          console.log('[GeminiLiveClient] Processing part. MimeType:', part.inlineData?.mimeType, 'Text:', part.text ? '(text content)' : 'none');
+          console.log('[GeminiLiveClient] 🔍 FULL PART:', JSON.stringify(part, null, 2));
+
+          // Handle Audio
+          if (part.inlineData?.mimeType?.startsWith('audio/')) {
+            const base64Audio = part.inlineData.data;
+
+            // Convert: base64 → 24kHz Int16 → Float32 → 48kHz Float32
+            const audioData = AudioResampler.prepareForPlayback(
+              base64Audio,
+              AudioResamplers.DOWNSTREAM
+            );
+
+            // Calculate latency
+            const latency = this.lastChunkSentTime > 0
+              ? performance.now() - this.lastChunkSentTime
+              : 0;
+
+            console.log(`[GeminiLiveClient] 📥 Received audio (${audioData.length} samples, latency: ${latency.toFixed(2)}ms)`);
+
+            this.emit('audioReceived', audioData, latency);
+          }
+
+          // Handle Text (for UI transcript)
+          if (part.text) {
+            textContent += part.text;
           }
         }
 
-        // When Gemini finishes speaking
-        // When Gemini finishes speaking
-        if (message.serverContent?.turnComplete) {
-          this.vad.setGeminiSpeaking(false);
-          console.log('[GeminiLiveClient] 🔄 Turn complete, user can speak');
+        // Emit text message if present
+        if (textContent) {
+          this._isTextModalityWorking = true; // Flag for STT fallback decision
+          console.log('🤖 [DR. SNUGGLES SAID]:', textContent);
+          console.log('[GeminiLiveClient] 📝 Received text:', textContent.substring(0, 50) + '...');
+          this.emit('message', {
+            role: 'assistant',
+            text: textContent,
+            timestamp: Date.now()
+          });
+          // 🧠 BRAIN MEMORY: Add assistant speech to short-term buffer
+          this.brain?.addToBuffer('assistant', textContent);
         }
+      }
+
+      // Handle Function Calls (Brain Tool Execution)
+      for (const part of message.serverContent.modelTurn.parts) {
+        if (part.functionCall) {
+          console.log(`[GeminiLiveClient] 🔧 Function call requested: ${part.functionCall.name}`);
+          console.log(`[GeminiLiveClient] Arguments:`, part.functionCall.args);
+
+          // Execute tool via brain if available
+          if (this.brain) {
+            try {
+              const result = await this.brain.executeTool(
+                part.functionCall.name,
+                part.functionCall.args
+              );
+              console.log(`[GeminiLiveClient] ✅ Tool executed:`, result);
+
+              // Send function response back to Gemini
+              // Note: This requires sending a follow-up message to the session
+              // For now, we'll just log it - full implementation needs session.sendClientContent()
+              console.warn('[GeminiLiveClient] ⚠️ Function result not sent back to Gemini (requires additional API integration)');
+            } catch (error) {
+              console.error('[GeminiLiveClient] ❌ Tool execution failed:', error);
+            }
+          } else {
+            console.warn('[GeminiLiveClient] ⚠️ Function call requested but brain not available');
+          }
+        }
+      }
+
+      // When Gemini finishes speaking
+      if (message.serverContent?.turnComplete) {
+        this.vad.setGeminiSpeaking(false);
+        console.log('[GeminiLiveClient] 🔄 Turn complete, user can speak');
       }
     } catch (error) {
       console.error('[GeminiLiveClient] Error handling message:', error);

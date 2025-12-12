@@ -10,6 +10,7 @@ export interface Character {
     username?: string;
     id?: string;
     system?: string;
+    systemPrompt?: string;
     adjectives?: string[];
     topics?: string[];
     knowledge?: Array<string | { path: string; shared?: boolean }>;

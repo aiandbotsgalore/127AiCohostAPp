@@ -12,8 +12,57 @@ export class AudioCaptureService {
   private isActive: boolean = false;
   private sampleRate: number = 48000;
 
+  // STT for user input transcription
+  private recognition: any = null;
+  private recognitionActive: boolean = false;
+
   constructor() {
     console.log('[AudioCaptureService] Initialized');
+
+    // Initialize STT for user input
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechRecognition) {
+      this.recognition = new SpeechRecognition();
+      this.recognition.continuous = true;
+      this.recognition.interimResults = false;
+      this.recognition.lang = 'en-US';
+
+      this.recognition.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            transcript += event.results[i][0].transcript;
+          }
+        }
+        if (transcript) {
+          console.log('[AudioCaptureService] User said:', transcript);
+          window.dispatchEvent(new CustomEvent('snugglesTranscript', {
+            detail: { text: transcript, role: 'user' }
+          }));
+        }
+      };
+
+      this.recognition.onerror = (event: any) => {
+        if (event.error !== 'network' && event.error !== 'aborted' && event.error !== 'no-speech') {
+          console.warn('[AudioCaptureService] STT Error:', event.error);
+        }
+      };
+
+      this.recognition.onend = () => {
+        // Automatically restart if still capturing
+        if (this.isActive && this.recognitionActive) {
+          try {
+            this.recognition.start();
+          } catch (e) {
+            // Ignore - probably already started
+          }
+        }
+      };
+
+      console.log('[AudioCaptureService] STT for user input initialized');
+    } else {
+      console.warn('[AudioCaptureService] SpeechRecognition not supported');
+    }
   }
 
   /**
@@ -103,6 +152,18 @@ export class AudioCaptureService {
       this.workletNode.connect(this.audioContext.destination);
 
       this.isActive = true;
+
+      // Start user input transcription
+      if (this.recognition) {
+        try {
+          this.recognition.start();
+          this.recognitionActive = true;
+          console.log('[AudioCaptureService] User input STT started');
+        } catch (e) {
+          console.warn('[AudioCaptureService] Could not start STT:', e);
+        }
+      }
+
       console.log('[AudioCaptureService] Audio capture started (AudioWorklet)');
 
     } catch (error: any) {
@@ -119,6 +180,17 @@ export class AudioCaptureService {
    */
   public stop(): void {
     this.isActive = false;
+    this.recognitionActive = false;
+
+    // Stop user input transcription
+    if (this.recognition) {
+      try {
+        this.recognition.stop();
+        console.log('[AudioCaptureService] User input STT stopped');
+      } catch (e) {
+        // Ignore - might already be stopped
+      }
+    }
 
     if (this.mediaStream) {
       this.mediaStream.getTracks().forEach(track => track.stop());

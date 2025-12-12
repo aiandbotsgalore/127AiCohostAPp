@@ -16,8 +16,10 @@ import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
 import { GeminiLiveClient } from './llm/geminiLiveClient';
+import { Modality } from '@google/genai';
 import { GeminiDiagnostics } from './llm/geminiDiagnostics';
 import { AudioManager2025 } from './audio/audioManager2025';
+import { ElevenLabsService } from './tts/elevenlabsService';
 
 // 🔍 DEBUG: Capture all logs to file for analysis
 const LOG_FILE = path.join(app.getPath('userData'), 'snuggles_debug.log');
@@ -65,7 +67,7 @@ import { IPC_CHANNELS, AppConfig, LatencyMetrics } from '../shared/types';
 
 // Load environment variables from .env.local in project root
 // Use process.cwd() instead of __dirname to avoid dist/ path issues
-const envPath = path.join(process.cwd(), '../.env.local');
+const envPath = path.join(process.cwd(), '.env.local');
 console.log(`[ENV] Loading .env from: ${envPath}`);
 console.log(`[ENV] File exists: ${fs.existsSync(envPath)}`);
 
@@ -88,6 +90,8 @@ function getConfigPath(): string {
 }
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
+const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'VLLHXM46m6GqBxK2uKwh';
 
 // PROOF OF LIFE: Show first 10 chars of API key to verify it loaded correctly
 if (API_KEY) {
@@ -140,11 +144,13 @@ class SnugglesApp2025 {
   private mainWindow: BrowserWindowType | null = null;
   private audioManager: AudioManager2025;
   private geminiLiveClient: GeminiLiveClient;
+  private elevenLabsService: ElevenLabsService;
   private knowledgeStore: KnowledgeStore;
   private sessionMemory: SessionMemoryService;
   private brain: DrSnugglesBrain; // Brain integration
   private config: AppConfig;
   private latencyMetrics: LatencyMetrics[] = [];
+  private useCustomVoice: boolean = true; // Toggle for ElevenLabs
 
   /**
    * Initializes the SnugglesApp2025.
@@ -170,6 +176,8 @@ class SnugglesApp2025 {
     this.audioManager = new AudioManager2025();
     // Pass brain to Gemini Live Client
     this.geminiLiveClient = new GeminiLiveClient(API_KEY, this.brain);
+    // Initialize ElevenLabs for custom voice
+    this.elevenLabsService = new ElevenLabsService(ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, 'eleven_flash_v2_5');
     this.knowledgeStore = new KnowledgeStore();
     this.sessionMemory = new SessionMemoryService();
 
@@ -261,13 +269,23 @@ class SnugglesApp2025 {
       });
     });
 
+    // Interruption (User started speaking)
+    this.geminiLiveClient.on('interruption', () => {
+      console.log('[Main] 🛑 Interruption detected. Signaling renderer to stop playback.');
+      this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_INTERRUPTION);
+    });
+
     // Audio received
     this.geminiLiveClient.on('audioReceived', (audioData, latencyMs) => {
       // Process audio (volume calculation)
       const processedAudio = this.audioManager.processOutputAudio(audioData);
 
       // Forward to renderer for playback
-      this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, processedAudio);
+      // ONLY forward if using Gemini voice (native audio)
+      // If using custom voice, we rely on ElevenLabs service to send audio
+      if (!this.useCustomVoice) {
+        this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, processedAudio);
+      }
 
       // Track latency
       const metrics: LatencyMetrics = {
@@ -281,11 +299,39 @@ class SnugglesApp2025 {
       this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_LATENCY_UPDATE, metrics);
 
       console.log(`[Main] 📊 Total latency: ${latencyMs.toFixed(2)}ms`);
+      console.log(`[Main] 📊 Total latency: ${latencyMs.toFixed(2)}ms`);
+    });
+
+    // User Transcription (What the user said)
+    this.geminiLiveClient.on('userTranscription', (transcription, timestamp) => {
+      console.log(`[Main] 🎤 User said: ${transcription}`);
+      this.mainWindow?.webContents.send(IPC_CHANNELS.MESSAGE_RECEIVED, {
+        id: crypto.randomUUID(),
+        timestamp: timestamp,
+        role: 'user',
+        text: transcription
+      });
     });
 
     // Text message received
-    this.geminiLiveClient.on('message', (message) => {
+    this.geminiLiveClient.on('message', async (message) => {
+      console.log(`[Main] 📝 Text received: ${message.text.substring(0, 50)}...`);
       this.mainWindow?.webContents.send(IPC_CHANNELS.MESSAGE_RECEIVED, message);
+
+      // Use ElevenLabs for custom voice synthesis
+      if (this.useCustomVoice && message.role === 'assistant') {
+        try {
+          console.log('[Main] 🎙️ Synthesizing with ElevenLabs custom voice...');
+          const audioData = await this.elevenLabsService.textToSpeech(message.text);
+
+          // Forward custom voice audio to renderer
+          this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, audioData);
+          console.log('[Main] ✅ Custom voice audio sent to renderer');
+        } catch (error) {
+          console.error('[Main] ⚠️ ElevenLabs TTS failed, falling back to Gemini voice:', error);
+          // Fallback handled automatically - Gemini will still speak if audio mode is enabled
+        }
+      }
     });
 
     // Error
@@ -344,6 +390,7 @@ class SnugglesApp2025 {
         await this.geminiLiveClient.connect({
           sessionSummaries,
           knowledgeContext,
+          responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined,
           ...config
         });
 
@@ -446,7 +493,10 @@ class SnugglesApp2025 {
         const knowledgeContext = await this.knowledgeStore.getSystemContext();
         await this.geminiLiveClient.connect({
           sessionSummaries,
-          knowledgeContext
+          knowledgeContext,
+          // If using custom voice, explicitly request TEXT modality only (saves bandwidth/avoids double-talk)
+          // If using Gemini voice, default to AUDIO (managed by client)
+          responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined
         });
       } else {
         await this.geminiLiveClient.disconnect();
@@ -590,11 +640,10 @@ class SnugglesApp2025 {
       console.log(`[Main] 👂 audio:listening-sensitivity: ${sensitivity}`);
       // Adjust microphone gain threshold (conceptual - actual gain is handled by browser)
       // This could affect how we process input audio or VAD thresholds
-      const sensitivityPrompt = `[DIRECTIVE] Microphone sensitivity set to ${sensitivity}. ${
-        sensitivity === 'High' ? 'Listen carefully for quiet speech.' :
+      const sensitivityPrompt = `[DIRECTIVE] Microphone sensitivity set to ${sensitivity}. ${sensitivity === 'High' ? 'Listen carefully for quiet speech.' :
         sensitivity === 'Medium' ? 'Standard listening mode.' :
-        'Focus on clear, strong audio signals.'
-      }`;
+          'Focus on clear, strong audio signals.'
+        }`;
       console.log(`[Main] 📝 ${sensitivityPrompt}`);
       // Note: This is primarily a UI indicator; actual audio processing happens in renderer
     });
@@ -614,14 +663,36 @@ class SnugglesApp2025 {
 
     ipcMain.on('system:update-prompt', async (_event: IpcMainEvent, prompt: string) => {
       console.log(`[Main] 📝 system:update-prompt received`);
-      console.log(`[Main] 📝 New prompt preview: ${prompt.substring(0, 100)}...`);
+      console.log(`[Main] 📝 Updating Brain system instruction...`);
 
-      // Send the prompt as a context injection to immediately affect behavior
-      // Note: For permanent change, would need to reconnect with new systemInstruction
-      console.log(`[Main] 💉 Injecting new persona directive...`);
-      const success = await this.safeSendText(`[SYSTEM DIRECTIVE UPDATE] ${prompt.substring(0, 500)}`, 'system prompt update');
-      if (success) {
-        console.log(`[Main] ✅ Prompt directive sent`);
+      // 1. Update the brain's persistent system instruction
+      this.brain.updateSystemInstruction(prompt);
+
+      // 2. Reconnect to apply the new persona silently (without it being a user message)
+      if (this.geminiLiveClient.connected) {
+        console.log(`[Main] 🔄 Reconnecting to apply new system prompt...`);
+
+        // Notify user via UI log if possible (optional)
+        // this.mainWindow?.webContents.send(IPC_CHANNELS.LOG_MESSAGE, { level: 'info', args: ['Applying new system prompt...'] });
+
+        await this.geminiLiveClient.disconnect();
+
+        // Short delay to ensure clean disconnect
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const sessionSummaries = await this.getRecentSummaries(3);
+        const knowledgeContext = await this.knowledgeStore.getSystemContext();
+
+        await this.geminiLiveClient.connect({
+          sessionSummaries,
+          knowledgeContext,
+          // Maintain the correct modality setting
+          responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined
+        });
+
+        console.log(`[Main] ✅ System prompt applied and session restarted`);
+      } else {
+        console.log(`[Main] ✅ System prompt updated (will apply on next connection)`);
       }
     });
 

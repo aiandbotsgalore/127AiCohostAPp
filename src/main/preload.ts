@@ -22,7 +22,8 @@ const IPC_CHANNELS = {
   GENAI_SEND_AUDIO_CHUNK: 'genai:sendAudioChunk',
   GENAI_AUDIO_RECEIVED: 'genai:audioReceived',
   GENAI_LATENCY_UPDATE: 'genai:latencyUpdate',
-  GENAI_VAD_STATE: 'genai:vadState'
+  GENAI_VAD_STATE: 'genai:vadState',
+  GENAI_INTERRUPTION: 'genai:interruption'
 } as const;
 
 // Lightweight local copies of the types needed for the preload bridge
@@ -159,6 +160,16 @@ contextBridge.exposeInMainWorld('snugglesAPI', {
    */
   onGenaiVADState: (callback: (state: any) => void) => {
     ipcRenderer.on(IPC_CHANNELS.GENAI_VAD_STATE, (_, state) => callback(state));
+  },
+
+  /**
+   * Listen for interruption events (user started speaking)
+   */
+  onGenaiInterruption: (callback: () => void) => {
+    ipcRenderer.on(IPC_CHANNELS.GENAI_INTERRUPTION, () => {
+      console.log('[Preload] 🛑 Interruption received');
+      callback();
+    });
   }
 });
 
@@ -198,6 +209,7 @@ declare global {
       onGenaiAudioReceived: (callback: (audioData: Float32Array) => void) => void;
       onGenaiLatencyUpdate: (callback: (metrics: any) => void) => void;
       onGenaiVADState: (callback: (state: any) => void) => void;
+      onGenaiInterruption: (callback: () => void) => void;
     };
   }
 }

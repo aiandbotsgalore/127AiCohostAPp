@@ -24,6 +24,7 @@
   "author": "Dr. Snuggles Team",
   "license": "MIT",
   "dependencies": {
+    "@elevenlabs/elevenlabs-js": "^2.27.0",
     "@google/genai": "^1.30.0",
     "@orama/orama": "^2.0.0",
     "@orama/plugin-data-persistence": "^2.0.0",

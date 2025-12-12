@@ -70,6 +70,11 @@ export class DrSnugglesBrain {
      * Build system instruction from character definition
      */
     private buildSystemInstruction(character: Character): string {
+        // Use explicit system prompt from JSON if available (priority)
+        if (character.systemPrompt) {
+            return character.systemPrompt;
+        }
+
         const bioText = Array.isArray(character.bio)
             ? character.bio.join("\n")
             : character.bio;
@@ -103,11 +108,17 @@ Remember: Stay in character at all times. You are having a real-time voice conve
         const relevantMemories = await this.memory.search(userContext || "recent conversation", 5);
 
         // 2. Build context-enhanced system prompt
+        // 2. Build context-enhanced system prompt
         const memoryContext = relevantMemories.length > 0
             ? `\n\nRELEVANT MEMORIES FROM PAST CONVERSATIONS:\n${relevantMemories.map(m => `- ${m.content}`).join("\n")}`
             : "";
 
-        const enhancedSystemInstruction = `${this.systemInstruction}${memoryContext}`;
+        const recentHistory = this.getRecentContext();
+        const historyContext = recentHistory
+            ? `\n\nRECENT CONVERSATION HISTORY:\n${recentHistory}`
+            : "";
+
+        const enhancedSystemInstruction = `${this.systemInstruction}${historyContext}${memoryContext}`;
 
         // 3. Define available tools (for autonomy)
         const tools = [
@@ -241,5 +252,13 @@ Remember: Stay in character at all times. You are having a real-time voice conve
     async shutdown(): Promise<void> {
         console.log("🛑 Shutting down brain...");
         // Cleanup if needed
+    }
+
+    /**
+     * Update system instruction dynamically
+     */
+    updateSystemInstruction(instruction: string): void {
+        console.log(`[Brain] 📝 Updating system instruction (${instruction.length} chars)`);
+        this.systemInstruction = instruction;
     }
 }
