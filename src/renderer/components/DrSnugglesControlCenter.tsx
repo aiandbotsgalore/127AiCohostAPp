@@ -17,6 +17,40 @@ const mockIPC = {
 
 const ipc = (window as any).electron ? (window as any).electron : mockIPC;
 
+const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
+    const [copied, setCopied] = useState(false);
+    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+        };
+    }, []);
+
+    const handleCopy = () => {
+        navigator.clipboard.writeText(text).then(() => {
+            setCopied(true);
+            if (timeoutRef.current) clearTimeout(timeoutRef.current);
+            timeoutRef.current = setTimeout(() => setCopied(false), 2000);
+        }).catch(err => {
+            console.error('Failed to copy:', err);
+        });
+    };
+
+    return (
+        <button
+            style={{ ...style, color: copied ? '#00ff88' : style?.color }}
+            onClick={handleCopy}
+            title={copied ? 'Copied!' : 'Copy message'}
+            aria-label={copied ? 'Copied' : 'Copy message'}
+        >
+            {copied ? '✓' : '📋'}
+        </button>
+    );
+};
+
 var styles = {
     container: {
         width: '100vw',
@@ -2207,14 +2241,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                         {msg.speaker || msg.role}
                                     </span>
                                     <div style={styles.transcriptActions}>
-                                        <button
-                                            style={styles.copyBtn}
-                                            onClick={() => navigator.clipboard.writeText(msg.text)}
-                                            title="Copy message"
-                                            aria-label="Copy message"
-                                        >
-                                            📋
-                                        </button>
+                                        <CopyButton text={msg.text} style={styles.copyBtn} />
                                         <span style={styles.transcriptTime}>
                                             {new Date(msg.timestamp).toLocaleTimeString()}
                                         </span>
