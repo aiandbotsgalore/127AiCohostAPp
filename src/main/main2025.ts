@@ -151,6 +151,7 @@ class SnugglesApp2025 {
   private config: AppConfig;
   private latencyMetrics: LatencyMetrics[] = [];
   private useCustomVoice: boolean = true; // Toggle for ElevenLabs
+  private voiceTestTimeout: NodeJS.Timeout | null = null; // Cleanup for voice test disconnect
 
   /**
    * Initializes the SnugglesApp2025.
@@ -549,9 +550,15 @@ class SnugglesApp2025 {
 
         // If we weren't connected before, disconnect after a delay to let the response play
         if (!wasConnected) {
-          setTimeout(async () => {
+          // Clear any existing voice test timeout
+          if (this.voiceTestTimeout) {
+            clearTimeout(this.voiceTestTimeout);
+          }
+          // Store timeout ID for cleanup
+          this.voiceTestTimeout = setTimeout(async () => {
             console.log(`[Main] 🔌 Disconnecting after voice test...`);
             await this.geminiLiveClient.disconnect();
+            this.voiceTestTimeout = null;
           }, 10000); // Wait 10 seconds for response
         }
       } catch (error) {
@@ -898,6 +905,14 @@ class SnugglesApp2025 {
     app.on('window-all-closed', () => {
       if (process.platform !== 'darwin') {
         app.quit();
+      }
+    });
+
+    app.on('before-quit', () => {
+      // Clean up any pending timeouts
+      if (this.voiceTestTimeout) {
+        clearTimeout(this.voiceTestTimeout);
+        this.voiceTestTimeout = null;
       }
     });
 
