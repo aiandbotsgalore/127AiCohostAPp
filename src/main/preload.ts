@@ -23,7 +23,9 @@ const IPC_CHANNELS = {
   GENAI_AUDIO_RECEIVED: 'genai:audioReceived',
   GENAI_LATENCY_UPDATE: 'genai:latencyUpdate',
   GENAI_VAD_STATE: 'genai:vadState',
-  GENAI_INTERRUPTION: 'genai:interruption'
+  GENAI_INTERRUPTION: 'genai:interruption',
+  SET_VOICE_MODE: 'set-voice-mode',
+  GET_VOICE_MODE: 'get-voice-mode'
 } as const;
 
 // Lightweight local copies of the types needed for the preload bridge
@@ -191,7 +193,23 @@ contextBridge.exposeInMainWorld('snugglesAPI', {
     };
     ipcRenderer.on(IPC_CHANNELS.GENAI_INTERRUPTION, handler);
     return () => ipcRenderer.removeListener(IPC_CHANNELS.GENAI_INTERRUPTION, handler);
-  }
+  },
+
+  // Voice mode switching
+  /**
+   * Set voice generation mode (Gemini native or ElevenLabs custom)
+   * @param mode - 'gemini-native' or 'elevenlabs-custom'
+   * @returns Promise<{ success: boolean; mode?: string; error?: string }>
+   */
+  setVoiceMode: (mode: 'gemini-native' | 'elevenlabs-custom') =>
+    ipcRenderer.invoke(IPC_CHANNELS.SET_VOICE_MODE, mode),
+
+  /**
+   * Get current voice generation mode
+   * @returns Promise<{ mode: 'gemini-native' | 'elevenlabs-custom' }>
+   */
+  getVoiceMode: () =>
+    ipcRenderer.invoke(IPC_CHANNELS.GET_VOICE_MODE)
 });
 
 contextBridge.exposeInMainWorld('electron', {
@@ -231,6 +249,9 @@ declare global {
       onGenaiLatencyUpdate: (callback: (metrics: any) => void) => () => void;
       onGenaiVADState: (callback: (state: any) => void) => () => void;
       onGenaiInterruption: (callback: () => void) => () => void;
+      // Voice mode switching
+      setVoiceMode: (mode: 'gemini-native' | 'elevenlabs-custom') => Promise<{ success: boolean; mode?: string; error?: string }>;
+      getVoiceMode: () => Promise<{ mode: 'gemini-native' | 'elevenlabs-custom' }>;
     };
   }
 }

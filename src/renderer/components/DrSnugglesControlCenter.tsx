@@ -1045,6 +1045,8 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
+    const errorToastTimeout = useRef<NodeJS.Timeout | null>(null);
+    const blinkTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Refs for animation loop to avoid re-running effect on high-frequency updates
     const audioLevelRef = useRef(audioLevel);
@@ -1109,7 +1111,12 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
             setConnectionStatus(data);
             if (data.error) {
                 setErrorToast(data.error);
-                setTimeout(() => setErrorToast(null), 5000);
+                // Clear existing timeout if any
+                if (errorToastTimeout.current) {
+                    clearTimeout(errorToastTimeout.current);
+                }
+                // Set new timeout and store ID for cleanup
+                errorToastTimeout.current = setTimeout(() => setErrorToast(null), 5000);
             }
         }));
 
@@ -1148,6 +1155,10 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
         return () => {
             unsubscribers.forEach(unsub => unsub && unsub());
+            // Clear error toast timeout on unmount
+            if (errorToastTimeout.current) {
+                clearTimeout(errorToastTimeout.current);
+            }
         };
     }, []);
 
@@ -1298,10 +1309,17 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     useEffect(() => {
         const blinkInterval = setInterval(() => {
             setBlinkState(true);
-            setTimeout(() => setBlinkState(false), 150);
+            // Store timeout ID for cleanup
+            blinkTimeout.current = setTimeout(() => setBlinkState(false), 150);
         }, 3000 + Math.random() * 2000);
 
-        return () => clearInterval(blinkInterval);
+        return () => {
+            clearInterval(blinkInterval);
+            // Clear any pending blink timeout
+            if (blinkTimeout.current) {
+                clearTimeout(blinkTimeout.current);
+            }
+        };
     }, []);
 
     // Mouth animation based on speaking
@@ -1441,7 +1459,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                 timestamp: Date.now()
             };
 
-            setMessages(prev => [...prev, newMessage]);
+            setMessages(prev => [...prev, newMessage].slice(-100)); // Limit to 100 messages
         };
 
         window.addEventListener('snugglesTranscript', handleTranscript);
@@ -1550,7 +1568,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
     const confirmSavePrompt = () => {
         if (promptNameInput.trim()) {
-            setSavedPrompts(prev => [...prev, { name: promptNameInput.trim(), content: systemPrompt }]);
+            setSavedPrompts(prev => [...prev, { name: promptNameInput.trim(), content: systemPrompt }].slice(0, 50)); // Limit to 50 saved prompts
             setIsSavePromptOpen(false);
         }
     };
@@ -1615,7 +1633,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const handleAddFavoritePreset = () => {
         const preset = prompt('Enter preset text:');
         if (preset) {
-            setFavoritePresets(prev => [...prev, preset]);
+            setFavoritePresets(prev => [...prev, preset].slice(0, 20)); // Limit to 20 favorite presets
         }
     };
 

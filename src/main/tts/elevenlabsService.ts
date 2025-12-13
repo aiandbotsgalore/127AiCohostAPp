@@ -1,8 +1,11 @@
 /**
  * ElevenLabs Text-to-Speech Service
- * 
+ *
  * Provides custom voice synthesis for Dr. Snuggles using ElevenLabs API.
- * Converts text responses from Gemini into audio using the custom 'hann' voice.
+ * Uses custom voice: GuzPQFD9JSeGAgP09DOb (updated Dec 2025)
+ *
+ * Note: Gemini Live API now has native audio output with affective dialogue,
+ * so this service is primarily used for fallback or custom voice scenarios.
  */
 
 import { ElevenLabsClient } from '@elevenlabs/elevenlabs-js';

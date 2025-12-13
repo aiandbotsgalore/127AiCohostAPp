@@ -91,7 +91,7 @@ function getConfigPath(): string {
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'VLLHXM46m6GqBxK2uKwh';
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'GuzPQFD9JSeGAgP09DOb'; // Custom voice (updated Dec 2025)
 
 // PROOF OF LIFE: Show first 10 chars of API key to verify it loaded correctly
 if (API_KEY) {
@@ -151,6 +151,7 @@ class SnugglesApp2025 {
   private config: AppConfig;
   private latencyMetrics: LatencyMetrics[] = [];
   private useCustomVoice: boolean = true; // Toggle for ElevenLabs
+  private voiceTestTimeout: NodeJS.Timeout | null = null; // Cleanup for voice test disconnect
 
   /**
    * Initializes the SnugglesApp2025.
@@ -353,6 +354,20 @@ class SnugglesApp2025 {
         error: `Reconnecting (attempt ${attempt})...`
       });
     });
+
+    // Text for TTS (ElevenLabs custom voice mode)
+    this.geminiLiveClient.on('textForTTS', async (text) => {
+      console.log('[Main] 🎙️ textForTTS received, converting with ElevenLabs...');
+      try {
+        const audioBuffer = await this.elevenLabsService.textToSpeech(text);
+        // Convert MP3 buffer to format that renderer can play
+        // The audioPlaybackService can handle MP3/encoded audio
+        this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, audioBuffer);
+        console.log('[Main] ✅ ElevenLabs audio sent to renderer');
+      } catch (error) {
+        console.error('[Main] ❌ ElevenLabs TTS failed:', error);
+      }
+    });
   }
 
   /**
@@ -368,11 +383,16 @@ class SnugglesApp2025 {
     });
 
     ipcMain.handle(IPC_CHANNELS.SET_AUDIO_DEVICES, async (_: any, inputId: string, outputId: string) => {
-      this.config.inputDeviceId = inputId;
-      this.config.outputDeviceId = outputId;
-      this.saveConfig();
-      await this.audioManager.setDevices(inputId, outputId);
-      return true;
+      try {
+        this.config.inputDeviceId = inputId;
+        this.config.outputDeviceId = outputId;
+        this.saveConfig();
+        await this.audioManager.setDevices(inputId, outputId);
+        return true;
+      } catch (error: any) {
+        console.error('[Main] ❌ Failed to set audio devices:', error);
+        return false;
+      }
     });
 
     // ===== December 2025 Gemini Live Streaming =====
@@ -466,53 +486,76 @@ class SnugglesApp2025 {
     });
 
     ipcMain.handle(IPC_CHANNELS.RESET_AGENT, async () => {
-      await this.geminiLiveClient.disconnect();
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const sessionSummaries = await this.getRecentSummaries(3);
-      const knowledgeContext = await this.knowledgeStore.getSystemContext();
-      await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
-      return true;
+      try {
+        await this.geminiLiveClient.disconnect();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const sessionSummaries = await this.getRecentSummaries(3);
+        const knowledgeContext = await this.knowledgeStore.getSystemContext();
+        await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
+        return true;
+      } catch (error: any) {
+        console.error('[Main] ❌ Failed to reset agent:', error);
+        return false;
+      }
     });
 
     ipcMain.handle(IPC_CHANNELS.SEARCH_KNOWLEDGE, async (_: any, query: string) => {
-      return this.knowledgeStore.search(query);
+      try {
+        return this.knowledgeStore.search(query);
+      } catch (error: any) {
+        console.error('[Main] ❌ Knowledge search failed:', error);
+        return [];
+      }
     });
 
     ipcMain.handle(IPC_CHANNELS.LOAD_KNOWLEDGE, async () => {
-      const knowledgeDir = path.join(__dirname, '../../knowledge');
-      await this.knowledgeStore.loadDocuments(knowledgeDir);
-      return { success: true, count: await this.knowledgeStore.getDocumentCount() };
+      try {
+        const knowledgeDir = path.join(__dirname, '../../knowledge');
+        await this.knowledgeStore.loadDocuments(knowledgeDir);
+        return { success: true, count: await this.knowledgeStore.getDocumentCount() };
+      } catch (error: any) {
+        console.error('[Main] ❌ Failed to load knowledge:', error);
+        return { success: false, count: 0, error: error.message };
+      }
     });
 
     // ===== GUI Handlers (December 2025) =====
 
     ipcMain.on('stream:toggle', async (_event: IpcMainEvent, isLive: boolean) => {
-      console.log(`[Main] 🎚️ stream:toggle: ${isLive}`);
-      if (isLive) {
-        const sessionSummaries = await this.getRecentSummaries(3);
-        const knowledgeContext = await this.knowledgeStore.getSystemContext();
-        await this.geminiLiveClient.connect({
-          sessionSummaries,
-          knowledgeContext,
-          // If using custom voice, explicitly request TEXT modality only (saves bandwidth/avoids double-talk)
-          // If using Gemini voice, default to AUDIO (managed by client)
-          responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined
-        });
-      } else {
-        await this.geminiLiveClient.disconnect();
+      try {
+        console.log(`[Main] 🎚️ stream:toggle: ${isLive}`);
+        if (isLive) {
+          const sessionSummaries = await this.getRecentSummaries(3);
+          const knowledgeContext = await this.knowledgeStore.getSystemContext();
+          await this.geminiLiveClient.connect({
+            sessionSummaries,
+            knowledgeContext,
+            // If using custom voice, explicitly request TEXT modality only (saves bandwidth/avoids double-talk)
+            // If using Gemini voice, default to AUDIO (managed by client)
+            responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined
+          });
+        } else {
+          await this.geminiLiveClient.disconnect();
+        }
+      } catch (error: any) {
+        console.error('[Main] ❌ Stream toggle failed:', error);
       }
     });
 
     ipcMain.on('voice:select', async (_event: IpcMainEvent, voice: string) => {
-      console.log(`[Main] 🗣️ voice:select: ${voice}`);
-      this.geminiLiveClient.setVoice(voice);
-      // Auto-reconnect if already connected to apply voice change
-      if (this.geminiLiveClient.connected) {
-        console.log(`[Main] 🔄 Reconnecting to apply voice change...`);
-        await this.geminiLiveClient.disconnect();
-        const sessionSummaries = await this.getRecentSummaries(3);
-        const knowledgeContext = await this.knowledgeStore.getSystemContext();
-        await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
+      try {
+        console.log(`[Main] 🗣️ voice:select: ${voice}`);
+        this.geminiLiveClient.setVoice(voice);
+        // Auto-reconnect if already connected to apply voice change
+        if (this.geminiLiveClient.connected) {
+          console.log(`[Main] 🔄 Reconnecting to apply voice change...`);
+          await this.geminiLiveClient.disconnect();
+          const sessionSummaries = await this.getRecentSummaries(3);
+          const knowledgeContext = await this.knowledgeStore.getSystemContext();
+          await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
+        }
+      } catch (error: any) {
+        console.error('[Main] ❌ Voice select failed:', error);
       }
     });
 
@@ -535,14 +578,38 @@ class SnugglesApp2025 {
 
         // If we weren't connected before, disconnect after a delay to let the response play
         if (!wasConnected) {
-          setTimeout(async () => {
+          // Clear any existing voice test timeout
+          if (this.voiceTestTimeout) {
+            clearTimeout(this.voiceTestTimeout);
+          }
+          // Store timeout ID for cleanup
+          this.voiceTestTimeout = setTimeout(async () => {
             console.log(`[Main] 🔌 Disconnecting after voice test...`);
             await this.geminiLiveClient.disconnect();
+            this.voiceTestTimeout = null;
           }, 10000); // Wait 10 seconds for response
         }
       } catch (error) {
         console.error(`[Main] ❌ Voice test failed:`, error);
       }
+    });
+
+    // Voice mode switching (Gemini native vs ElevenLabs custom)
+    ipcMain.handle(IPC_CHANNELS.SET_VOICE_MODE, async (_event: any, mode: 'gemini-native' | 'elevenlabs-custom') => {
+      console.log(`[Main] 🎙️ SET_VOICE_MODE: ${mode}`);
+      try {
+        await this.geminiLiveClient.setVoiceMode(mode);
+        return { success: true, mode };
+      } catch (error: any) {
+        console.error(`[Main] ❌ Failed to set voice mode:`, error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.GET_VOICE_MODE, async () => {
+      const mode = this.geminiLiveClient.getVoiceMode();
+      console.log(`[Main] 🎙️ GET_VOICE_MODE: ${mode}`);
+      return { mode };
     });
 
     ipcMain.on('voice:style', async (_event: IpcMainEvent, styleConfig: { style: string, pace: string, tone: string, accent: string }) => {
@@ -866,6 +933,14 @@ class SnugglesApp2025 {
     app.on('window-all-closed', () => {
       if (process.platform !== 'darwin') {
         app.quit();
+      }
+    });
+
+    app.on('before-quit', () => {
+      // Clean up any pending timeouts
+      if (this.voiceTestTimeout) {
+        clearTimeout(this.voiceTestTimeout);
+        this.voiceTestTimeout = null;
       }
     });
 
