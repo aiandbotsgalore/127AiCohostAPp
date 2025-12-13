@@ -2,11 +2,14 @@
  * GEMINI LIVE CLIENT - December 2025 Standard
  *
  * Modern implementation using @google/genai SDK (v1.30.0+)
- * Model: gemini-2.5-flash-native-audio-preview-09-2025
+ * Model: gemini-live-2.5-flash-native-audio (GA release, Dec 2025)
  * Audio: 16kHz 16-bit mono PCM → base64
  * Voice: Charon (hardcoded for Dr. Snuggles)
  *
  * Features:
+ * - Native audio processing (single low-latency model)
+ * - Affective dialogue (emotion, tone, pace awareness)
+ * - Proactive audio (intelligent VAD)
  * - Async startChat() session API
  * - Exponential backoff reconnection
  * - Latency logging
@@ -22,9 +25,11 @@ import { DrSnugglesBrain } from '../../brain/DrSnugglesBrain';
 import { GeminiDiagnostics, KNOWN_LIVE_MODELS } from './geminiDiagnostics';
 
 // December 2025 Live API model with NATIVE AUDIO support
-// Using the official native audio model from Google's documentation
-const MODEL_NAME = 'gemini-2.5-flash-native-audio-preview-09-2025';  // Native audio model (24kHz output)
+// Using the official gemini-live-2.5-flash-native-audio model (released Dec 2025)
+// Reference: https://cloud.google.com/blog/topics/developers-practitioners/how-to-use-gemini-live-api-native-audio-in-vertex-ai
+const MODEL_NAME = 'gemini-live-2.5-flash-native-audio';  // Native audio model with affective dialogue (24kHz output)
 // Alternative models (older, less capable):
+// 'gemini-2.5-flash-native-audio-preview-09-2025' (preview version)
 // 'gemini-2.0-flash-live-001' (older live model)
 // 'gemini-2.0-flash-exp' (text-only, no audio)
 const VOICE_NAME = 'Charon'; // Deep, authoritative Dr. Snuggles voice
@@ -200,7 +205,7 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
         // 🔄 DYNAMIC MODEL SELECTION:
         // Native-audio models don't support TEXT-only mode, so switch models based on modality
         const selectedModel = isAudioMode
-          ? 'gemini-2.5-flash-native-audio-preview-09-2025'  // Native audio for AUDIO mode
+          ? MODEL_NAME  // gemini-live-2.5-flash-native-audio (GA release, affective dialogue)
           : 'gemini-2.0-flash-exp';  // Standard model for TEXT mode (custom voice)
 
         console.log(`[GeminiLiveClient] Selected model: ${selectedModel} (Audio mode: ${isAudioMode})`);

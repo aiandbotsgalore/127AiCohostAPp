@@ -91,7 +91,7 @@ function getConfigPath(): string {
 
 const API_KEY = process.env.GEMINI_API_KEY || '';
 const ELEVENLABS_API_KEY = process.env.ELEVENLABS_API_KEY || '';
-const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'VLLHXM46m6GqBxK2uKwh';
+const ELEVENLABS_VOICE_ID = process.env.ELEVENLABS_VOICE_ID || 'GuzPQFD9JSeGAgP09DOb'; // Custom voice (updated Dec 2025)
 
 // PROOF OF LIFE: Show first 10 chars of API key to verify it loaded correctly
 if (API_KEY) {
