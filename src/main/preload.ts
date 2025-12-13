@@ -97,25 +97,34 @@ contextBridge.exposeInMainWorld('snugglesAPI', {
   /**
    * Registers a callback for volume updates.
    * @param callback - The function to call with volume data.
+   * @returns Cleanup function to remove listener
    */
   onVolumeUpdate: (callback: (data: VolumeData) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.VOLUME_UPDATE, (_, data) => callback(data));
+    const handler = (_: any, data: VolumeData) => callback(data);
+    ipcRenderer.on(IPC_CHANNELS.VOLUME_UPDATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.VOLUME_UPDATE, handler);
   },
 
   /**
    * Registers a callback for connection status updates.
    * @param callback - The function to call with status updates.
+   * @returns Cleanup function to remove listener
    */
   onConnectionStatus: (callback: (status: ConnectionStatus) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.CONNECTION_STATUS, (_, status) => callback(status));
+    const handler = (_: any, status: ConnectionStatus) => callback(status);
+    ipcRenderer.on(IPC_CHANNELS.CONNECTION_STATUS, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.CONNECTION_STATUS, handler);
   },
 
   /**
    * Registers a callback for received messages.
    * @param callback - The function to call with the received message.
+   * @returns Cleanup function to remove listener
    */
   onMessageReceived: (callback: (message: ConversationTurn) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.MESSAGE_RECEIVED, (_, message) => callback(message));
+    const handler = (_: any, message: ConversationTurn) => callback(message);
+    ipcRenderer.on(IPC_CHANNELS.MESSAGE_RECEIVED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.MESSAGE_RECEIVED, handler);
   },
 
   // ===== December 2025 Audio Streaming APIs =====
@@ -140,36 +149,48 @@ contextBridge.exposeInMainWorld('snugglesAPI', {
   /**
    * Listen for audio received from Gemini (48kHz Float32Array)
    * Main process handles conversion from 24kHz PCM16 base64
+   * @returns Cleanup function to remove listener
    */
   onGenaiAudioReceived: (callback: (audioData: Float32Array) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, (_, audioData) => {
+    const handler = (_: any, audioData: Float32Array) => {
       console.log(`[Preload] 🎧 Audio received: ${audioData?.length || 'undefined'} samples, Type: ${audioData?.constructor?.name || typeof audioData}`);
       callback(audioData);
-    });
+    };
+    ipcRenderer.on(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, handler);
   },
 
   /**
    * Listen for latency updates
+   * @returns Cleanup function to remove listener
    */
   onGenaiLatencyUpdate: (callback: (metrics: any) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.GENAI_LATENCY_UPDATE, (_, metrics) => callback(metrics));
+    const handler = (_: any, metrics: any) => callback(metrics);
+    ipcRenderer.on(IPC_CHANNELS.GENAI_LATENCY_UPDATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.GENAI_LATENCY_UPDATE, handler);
   },
 
   /**
    * Listen for VAD state changes
+   * @returns Cleanup function to remove listener
    */
   onGenaiVADState: (callback: (state: any) => void) => {
-    ipcRenderer.on(IPC_CHANNELS.GENAI_VAD_STATE, (_, state) => callback(state));
+    const handler = (_: any, state: any) => callback(state);
+    ipcRenderer.on(IPC_CHANNELS.GENAI_VAD_STATE, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.GENAI_VAD_STATE, handler);
   },
 
   /**
    * Listen for interruption events (user started speaking)
+   * @returns Cleanup function to remove listener
    */
   onGenaiInterruption: (callback: () => void) => {
-    ipcRenderer.on(IPC_CHANNELS.GENAI_INTERRUPTION, () => {
+    const handler = () => {
       console.log('[Preload] 🛑 Interruption received');
       callback();
-    });
+    };
+    ipcRenderer.on(IPC_CHANNELS.GENAI_INTERRUPTION, handler);
+    return () => ipcRenderer.removeListener(IPC_CHANNELS.GENAI_INTERRUPTION, handler);
   }
 });
 
@@ -200,16 +221,16 @@ declare global {
       getStatus: () => Promise<{ connected: boolean; muted: boolean; devices: AudioDevice[] }>;
       searchKnowledge: (query: string) => Promise<any[]>;
       loadKnowledge: () => Promise<{ success: boolean; count: number }>;
-      onVolumeUpdate: (callback: (data: VolumeData) => void) => void;
-      onConnectionStatus: (callback: (status: ConnectionStatus) => void) => void;
-      onMessageReceived: (callback: (message: ConversationTurn) => void) => void;
+      onVolumeUpdate: (callback: (data: VolumeData) => void) => () => void;
+      onConnectionStatus: (callback: (status: ConnectionStatus) => void) => () => void;
+      onMessageReceived: (callback: (message: ConversationTurn) => void) => () => void;
       // December 2025 Audio Streaming APIs
       genaiStartSession: (config?: any) => Promise<{ success: boolean; error?: string }>;
       genaiSendAudioChunk: (audioChunk: Float32Array) => Promise<number>;
-      onGenaiAudioReceived: (callback: (audioData: Float32Array) => void) => void;
-      onGenaiLatencyUpdate: (callback: (metrics: any) => void) => void;
-      onGenaiVADState: (callback: (state: any) => void) => void;
-      onGenaiInterruption: (callback: () => void) => void;
+      onGenaiAudioReceived: (callback: (audioData: Float32Array) => void) => () => void;
+      onGenaiLatencyUpdate: (callback: (metrics: any) => void) => () => void;
+      onGenaiVADState: (callback: (state: any) => void) => () => void;
+      onGenaiInterruption: (callback: () => void) => () => void;
     };
   }
 }
