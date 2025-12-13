@@ -25,6 +25,10 @@ export class AudioPlaybackService {
   private debugAudioEnabled: boolean = false;
   private audioLogCounter: number = 0;
 
+  // IPC listener cleanup functions
+  private cleanupAudioReceived: (() => void) | null = null;
+  private cleanupInterruption: (() => void) | null = null;
+
   public testTone(): void {
     if (!this._audioContext) this.start();
     if (!this._audioContext || !this.gainNode) return;
@@ -129,14 +133,14 @@ export class AudioPlaybackService {
 
       this._isActive = true;
 
-      // Listen for incoming audio
-      window.snugglesAPI.onGenaiAudioReceived((audioData: Float32Array | ArrayBuffer | Uint8Array) => {
+      // Listen for incoming audio - store cleanup function
+      this.cleanupAudioReceived = window.snugglesAPI.onGenaiAudioReceived((audioData: Float32Array | ArrayBuffer | Uint8Array) => {
         this.queueAudio(audioData);
       });
 
-      // Listen for interruptions
+      // Listen for interruptions - store cleanup function
       if (window.snugglesAPI.onGenaiInterruption) {
-        window.snugglesAPI.onGenaiInterruption(() => {
+        this.cleanupInterruption = window.snugglesAPI.onGenaiInterruption(() => {
           this.cancelPlayback();
         });
       }
@@ -260,6 +264,16 @@ export class AudioPlaybackService {
 
     if (this.recognition) {
       try { this.recognition.stop(); } catch (e) { /* ignore */ }
+    }
+
+    // Clean up IPC listeners
+    if (this.cleanupAudioReceived) {
+      this.cleanupAudioReceived();
+      this.cleanupAudioReceived = null;
+    }
+    if (this.cleanupInterruption) {
+      this.cleanupInterruption();
+      this.cleanupInterruption = null;
     }
 
     this.cancelPlayback();
