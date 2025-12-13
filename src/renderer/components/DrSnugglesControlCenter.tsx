@@ -1459,7 +1459,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                 timestamp: Date.now()
             };
 
-            setMessages(prev => [...prev, newMessage]);
+            setMessages(prev => [...prev, newMessage].slice(-100)); // Limit to 100 messages
         };
 
         window.addEventListener('snugglesTranscript', handleTranscript);
@@ -1568,7 +1568,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
     const confirmSavePrompt = () => {
         if (promptNameInput.trim()) {
-            setSavedPrompts(prev => [...prev, { name: promptNameInput.trim(), content: systemPrompt }]);
+            setSavedPrompts(prev => [...prev, { name: promptNameInput.trim(), content: systemPrompt }].slice(0, 50)); // Limit to 50 saved prompts
             setIsSavePromptOpen(false);
         }
     };
@@ -1633,7 +1633,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const handleAddFavoritePreset = () => {
         const preset = prompt('Enter preset text:');
         if (preset) {
-            setFavoritePresets(prev => [...prev, preset]);
+            setFavoritePresets(prev => [...prev, preset].slice(0, 20)); // Limit to 20 favorite presets
         }
     };
 
