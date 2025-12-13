@@ -940,6 +940,33 @@ var styles = {
         animation: 'slideIn 0.3s ease',
         zIndex: 999,
     },
+    emptyState: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        color: '#aaa',
+        padding: '20px',
+        textAlign: 'center',
+        opacity: 0.9,
+    },
+    emptyStateIcon: {
+        fontSize: '48px',
+        marginBottom: '16px',
+        opacity: 0.7,
+        filter: 'grayscale(100%)',
+    },
+    emptyStateText: {
+        fontSize: '14px',
+        lineHeight: '1.6',
+        maxWidth: '250px',
+    },
+    emptyStateSubtext: {
+        fontSize: '12px',
+        color: '#888',
+        marginTop: '8px',
+    },
 };
 
 const DrSnugglesControlCenter: React.FC = () => {
@@ -2272,25 +2299,44 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                         </div>
                     </div>
                     <div style={styles.transcript} ref={transcriptRef}>
-                        {filteredMessages.map((msg, idx) => (
-                            <div key={idx} style={styles.transcriptMessage}>
-                                <div style={styles.transcriptHeader}>
-                                    <span style={{
-                                        ...styles.transcriptSpeaker,
-                                        color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
-                                    }}>
-                                        {msg.speaker || msg.role}
-                                    </span>
-                                    <div style={styles.transcriptActions}>
-                                        <CopyButton text={msg.text} style={styles.copyBtn} />
-                                        <span style={styles.transcriptTime}>
-                                            {new Date(msg.timestamp).toLocaleTimeString()}
-                                        </span>
-                                    </div>
+                        {messages.length === 0 ? (
+                            <div style={styles.emptyState}>
+                                <div style={styles.emptyStateIcon}>💬</div>
+                                <div style={styles.emptyStateText}>
+                                    Conversation is empty.
                                 </div>
-                                <div style={styles.transcriptText}>{msg.text}</div>
+                                <div style={styles.emptyStateSubtext}>
+                                    Go Live or type a context message to start.
+                                </div>
                             </div>
-                        ))}
+                        ) : filteredMessages.length === 0 ? (
+                            <div style={styles.emptyState}>
+                                <div style={styles.emptyStateIcon}>🔍</div>
+                                <div style={styles.emptyStateText}>
+                                    No messages match your search.
+                                </div>
+                            </div>
+                        ) : (
+                            filteredMessages.map((msg, idx) => (
+                                <div key={idx} style={styles.transcriptMessage}>
+                                    <div style={styles.transcriptHeader}>
+                                        <span style={{
+                                            ...styles.transcriptSpeaker,
+                                            color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
+                                        }}>
+                                            {msg.speaker || msg.role}
+                                        </span>
+                                        <div style={styles.transcriptActions}>
+                                            <CopyButton text={msg.text} style={styles.copyBtn} />
+                                            <span style={styles.transcriptTime}>
+                                                {new Date(msg.timestamp).toLocaleTimeString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div style={styles.transcriptText}>{msg.text}</div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
 

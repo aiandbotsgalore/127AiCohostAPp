@@ -1,3 +1,3 @@
-## 2025-12-12 - Adding Button Feedback
-**Learning:** Users often lack confirmation when performing invisible actions like copying to clipboard, leading to uncertainty and repeated clicks.
-**Action:** Always provide visual feedback (toast, icon change, or text change) for invisible actions like clipboard operations or background saves.
+## 2025-12-07 - Styles Object Pattern
+**Learning:** The application uses a large `styles` object for CSS-in-JS within `DrSnugglesControlCenter.tsx` instead of external CSS files or styled-components.
+**Action:** When adding new UI elements to this component, continue adding to the `styles` object to maintain consistency, rather than introducing new styling paradigms.
