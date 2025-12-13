@@ -383,11 +383,16 @@ class SnugglesApp2025 {
     });
 
     ipcMain.handle(IPC_CHANNELS.SET_AUDIO_DEVICES, async (_: any, inputId: string, outputId: string) => {
-      this.config.inputDeviceId = inputId;
-      this.config.outputDeviceId = outputId;
-      this.saveConfig();
-      await this.audioManager.setDevices(inputId, outputId);
-      return true;
+      try {
+        this.config.inputDeviceId = inputId;
+        this.config.outputDeviceId = outputId;
+        this.saveConfig();
+        await this.audioManager.setDevices(inputId, outputId);
+        return true;
+      } catch (error: any) {
+        console.error('[Main] ❌ Failed to set audio devices:', error);
+        return false;
+      }
     });
 
     // ===== December 2025 Gemini Live Streaming =====
@@ -481,53 +486,76 @@ class SnugglesApp2025 {
     });
 
     ipcMain.handle(IPC_CHANNELS.RESET_AGENT, async () => {
-      await this.geminiLiveClient.disconnect();
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      const sessionSummaries = await this.getRecentSummaries(3);
-      const knowledgeContext = await this.knowledgeStore.getSystemContext();
-      await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
-      return true;
+      try {
+        await this.geminiLiveClient.disconnect();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const sessionSummaries = await this.getRecentSummaries(3);
+        const knowledgeContext = await this.knowledgeStore.getSystemContext();
+        await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
+        return true;
+      } catch (error: any) {
+        console.error('[Main] ❌ Failed to reset agent:', error);
+        return false;
+      }
     });
 
     ipcMain.handle(IPC_CHANNELS.SEARCH_KNOWLEDGE, async (_: any, query: string) => {
-      return this.knowledgeStore.search(query);
+      try {
+        return this.knowledgeStore.search(query);
+      } catch (error: any) {
+        console.error('[Main] ❌ Knowledge search failed:', error);
+        return [];
+      }
     });
 
     ipcMain.handle(IPC_CHANNELS.LOAD_KNOWLEDGE, async () => {
-      const knowledgeDir = path.join(__dirname, '../../knowledge');
-      await this.knowledgeStore.loadDocuments(knowledgeDir);
-      return { success: true, count: await this.knowledgeStore.getDocumentCount() };
+      try {
+        const knowledgeDir = path.join(__dirname, '../../knowledge');
+        await this.knowledgeStore.loadDocuments(knowledgeDir);
+        return { success: true, count: await this.knowledgeStore.getDocumentCount() };
+      } catch (error: any) {
+        console.error('[Main] ❌ Failed to load knowledge:', error);
+        return { success: false, count: 0, error: error.message };
+      }
     });
 
     // ===== GUI Handlers (December 2025) =====
 
     ipcMain.on('stream:toggle', async (_event: IpcMainEvent, isLive: boolean) => {
-      console.log(`[Main] 🎚️ stream:toggle: ${isLive}`);
-      if (isLive) {
-        const sessionSummaries = await this.getRecentSummaries(3);
-        const knowledgeContext = await this.knowledgeStore.getSystemContext();
-        await this.geminiLiveClient.connect({
-          sessionSummaries,
-          knowledgeContext,
-          // If using custom voice, explicitly request TEXT modality only (saves bandwidth/avoids double-talk)
-          // If using Gemini voice, default to AUDIO (managed by client)
-          responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined
-        });
-      } else {
-        await this.geminiLiveClient.disconnect();
+      try {
+        console.log(`[Main] 🎚️ stream:toggle: ${isLive}`);
+        if (isLive) {
+          const sessionSummaries = await this.getRecentSummaries(3);
+          const knowledgeContext = await this.knowledgeStore.getSystemContext();
+          await this.geminiLiveClient.connect({
+            sessionSummaries,
+            knowledgeContext,
+            // If using custom voice, explicitly request TEXT modality only (saves bandwidth/avoids double-talk)
+            // If using Gemini voice, default to AUDIO (managed by client)
+            responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined
+          });
+        } else {
+          await this.geminiLiveClient.disconnect();
+        }
+      } catch (error: any) {
+        console.error('[Main] ❌ Stream toggle failed:', error);
       }
     });
 
     ipcMain.on('voice:select', async (_event: IpcMainEvent, voice: string) => {
-      console.log(`[Main] 🗣️ voice:select: ${voice}`);
-      this.geminiLiveClient.setVoice(voice);
-      // Auto-reconnect if already connected to apply voice change
-      if (this.geminiLiveClient.connected) {
-        console.log(`[Main] 🔄 Reconnecting to apply voice change...`);
-        await this.geminiLiveClient.disconnect();
-        const sessionSummaries = await this.getRecentSummaries(3);
-        const knowledgeContext = await this.knowledgeStore.getSystemContext();
-        await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
+      try {
+        console.log(`[Main] 🗣️ voice:select: ${voice}`);
+        this.geminiLiveClient.setVoice(voice);
+        // Auto-reconnect if already connected to apply voice change
+        if (this.geminiLiveClient.connected) {
+          console.log(`[Main] 🔄 Reconnecting to apply voice change...`);
+          await this.geminiLiveClient.disconnect();
+          const sessionSummaries = await this.getRecentSummaries(3);
+          const knowledgeContext = await this.knowledgeStore.getSystemContext();
+          await this.geminiLiveClient.connect({ sessionSummaries, knowledgeContext });
+        }
+      } catch (error: any) {
+        console.error('[Main] ❌ Voice select failed:', error);
       }
     });
 
