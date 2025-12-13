@@ -353,6 +353,20 @@ class SnugglesApp2025 {
         error: `Reconnecting (attempt ${attempt})...`
       });
     });
+
+    // Text for TTS (ElevenLabs custom voice mode)
+    this.geminiLiveClient.on('textForTTS', async (text) => {
+      console.log('[Main] 🎙️ textForTTS received, converting with ElevenLabs...');
+      try {
+        const audioBuffer = await this.elevenLabsService.textToSpeech(text);
+        // Convert MP3 buffer to format that renderer can play
+        // The audioPlaybackService can handle MP3/encoded audio
+        this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, audioBuffer);
+        console.log('[Main] ✅ ElevenLabs audio sent to renderer');
+      } catch (error) {
+        console.error('[Main] ❌ ElevenLabs TTS failed:', error);
+      }
+    });
   }
 
   /**
@@ -543,6 +557,24 @@ class SnugglesApp2025 {
       } catch (error) {
         console.error(`[Main] ❌ Voice test failed:`, error);
       }
+    });
+
+    // Voice mode switching (Gemini native vs ElevenLabs custom)
+    ipcMain.handle(IPC_CHANNELS.SET_VOICE_MODE, async (_event: any, mode: 'gemini-native' | 'elevenlabs-custom') => {
+      console.log(`[Main] 🎙️ SET_VOICE_MODE: ${mode}`);
+      try {
+        await this.geminiLiveClient.setVoiceMode(mode);
+        return { success: true, mode };
+      } catch (error: any) {
+        console.error(`[Main] ❌ Failed to set voice mode:`, error);
+        return { success: false, error: error.message };
+      }
+    });
+
+    ipcMain.handle(IPC_CHANNELS.GET_VOICE_MODE, async () => {
+      const mode = this.geminiLiveClient.getVoiceMode();
+      console.log(`[Main] 🎙️ GET_VOICE_MODE: ${mode}`);
+      return { mode };
     });
 
     ipcMain.on('voice:style', async (_event: IpcMainEvent, styleConfig: { style: string, pace: string, tone: string, accent: string }) => {

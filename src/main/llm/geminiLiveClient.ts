@@ -88,6 +88,7 @@ export interface GeminiLiveClientEvents {
   message: (message: { role: string; text: string; timestamp: number }) => void;
   userTranscription: (transcription: string, timestamp: number) => void; // NEW: User speech transcription
   interruption: () => void; // NEW: User started speaking
+  textForTTS: (text: string) => void; // NEW: Text response that needs ElevenLabs TTS
 }
 
 /**
@@ -127,6 +128,9 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
 
   // Current voice (can be changed dynamically)
   private currentVoice: string = VOICE_NAME;
+
+  // Voice mode: 'gemini-native' uses Gemini's audio, 'elevenlabs-custom' uses text→ElevenLabs
+  private voiceMode: 'gemini-native' | 'elevenlabs-custom' = 'gemini-native';
 
   /**
    * Initializes the GeminiLiveClient.
@@ -199,7 +203,10 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
         console.log(`[GeminiLiveClient] System Instruction Length: ${systemInstruction.length} chars`);
 
         // Build the config for logging/debugging
-        const responseModalities = config.responseModalities || [Modality.AUDIO];
+        // Use TEXT modality if in ElevenLabs mode, otherwise use AUDIO
+        const responseModalities = this.voiceMode === 'elevenlabs-custom'
+          ? [Modality.TEXT]
+          : (config.responseModalities || [Modality.AUDIO]);
         const isAudioMode = responseModalities.includes(Modality.AUDIO);
 
         // 🔄 DYNAMIC MODEL SELECTION:
@@ -208,6 +215,7 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
           ? MODEL_NAME  // gemini-live-2.5-flash-native-audio (GA release, affective dialogue)
           : 'gemini-2.0-flash-exp';  // Standard model for TEXT mode (custom voice)
 
+        console.log(`[GeminiLiveClient] 🎙️ Voice Mode: ${this.voiceMode}`);
         console.log(`[GeminiLiveClient] Selected model: ${selectedModel} (Audio mode: ${isAudioMode})`);
 
         // Only include speechConfig if AUDIO modality is requested
@@ -342,6 +350,38 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
    */
   public getVoice(): string {
     return this.currentVoice;
+  }
+
+  /**
+   * Set voice generation mode.
+   * 'gemini-native' = Gemini generates audio directly (Charon voice, affective dialogue)
+   * 'elevenlabs-custom' = Gemini returns text, ElevenLabs generates audio (custom voice)
+   *
+   * @param {string} mode - Voice mode to use
+   * @returns {Promise<void>}
+   */
+  public async setVoiceMode(mode: 'gemini-native' | 'elevenlabs-custom'): Promise<void> {
+    if (this.voiceMode === mode) {
+      console.log(`[GeminiLiveClient] Voice mode already set to: ${mode}`);
+      return;
+    }
+
+    this.voiceMode = mode;
+    console.log(`[GeminiLiveClient] 🎙️ Voice mode changed to: ${mode}`);
+
+    // If connected, reconnect with new modality
+    if (this.isConnected) {
+      console.log('[GeminiLiveClient] Reconnecting with new voice mode...');
+      await this.disconnect();
+      await this.connect(this.lastConfig);
+    }
+  }
+
+  /**
+   * Get current voice generation mode.
+   */
+  public getVoiceMode(): 'gemini-native' | 'elevenlabs-custom' {
+    return this.voiceMode;
   }
 
   /**
@@ -597,6 +637,13 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
             text: textContent,
             timestamp: Date.now()
           });
+
+          // If in ElevenLabs mode, also emit textForTTS event
+          if (this.voiceMode === 'elevenlabs-custom') {
+            console.log('[GeminiLiveClient] 🎙️ ElevenLabs mode: Emitting textForTTS');
+            this.emit('textForTTS', textContent);
+          }
+
           // 🧠 BRAIN MEMORY: Add assistant speech to short-term buffer
           this.brain?.addToBuffer('assistant', textContent);
         }

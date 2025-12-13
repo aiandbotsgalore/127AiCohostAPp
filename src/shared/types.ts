@@ -303,8 +303,15 @@ export const IPC_CHANNELS = {
   // New Control Channels
   UPDATE_BRAIN_CONFIG: 'update-brain-config',
   SET_VOICE: 'set-voice',
-  UPDATE_SYSTEM_PROMPT: 'update-system-prompt'
+  UPDATE_SYSTEM_PROMPT: 'update-system-prompt',
+  SET_VOICE_MODE: 'set-voice-mode',
+  GET_VOICE_MODE: 'get-voice-mode'
 } as const;
+
+/**
+ * Voice generation mode for AI responses
+ */
+export type VoiceMode = 'gemini-native' | 'elevenlabs-custom';
 
 /**
  * Configuration for the Agent's "Brain".
@@ -322,4 +329,6 @@ export interface BrainConfig {
   listeningSensitivity: 'low' | 'medium' | 'high';
   /** Current voice ID. */
   voice: string;
+  /** Voice generation mode. */
+  voiceMode?: VoiceMode;
 }
