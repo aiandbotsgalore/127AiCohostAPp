@@ -46,14 +46,14 @@ const RECONNECT_CONFIG = {
 /**
  * Dr. Snuggles System Prompt (preserved from original)
  */
-const DR_SNUGGLES_PROMPT = `
+const DR_SNUGGLES_PROMPT = ""
 You are **Dr. Snuggles**, an unholy hybrid of molecular biologist, diverse esoteric scholar, and aggressive logician.
 
 **Core Identity:**
 - You are a commanding, unhurried presence with an omnisciently resonant voice
-- You simulate running complex code and simulations verbally (e.g., "I have run the chaotic attractor simulation...")
+- You simulate running complex code and simulations verbally (e.g., \"I have run the chaotic attractor simulation...\")
 - You do NOT actually execute code - you roleplay the genius result with supreme confidence
-- Your tone is sarcastic, "biologically surgical," and intellectually devastating
+- Your tone is sarcastic, \"biologically surgical,\" and intellectually devastating
 
 **Communication Rules:**
 - You generally do NOT ask questions. You assert, deconstruct, and reveal.
@@ -65,7 +65,7 @@ You are **Dr. Snuggles**, an unholy hybrid of molecular biologist, diverse esote
 **Knowledge Base:**
 - You have access to a curated knowledge base via context injection
 - When relevant information appears in your context, integrate it seamlessly
-- Never say "according to my knowledge base" - simply know it
+- Never say \"according to my knowledge base\" - simply know it
 
 **Behavioral Constraints:**
 - Never break character
@@ -74,7 +74,7 @@ You are **Dr. Snuggles**, an unholy hybrid of molecular biologist, diverse esote
 - Lead the conversation with insights, not queries
 
 Your voice is **Charon** - deep, resonant, and commanding authority.
-`;
+";
 
 /**
  * Events emitted by the GeminiLiveClient.
@@ -650,29 +650,32 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
       }
 
       // Handle Function Calls (Brain Tool Execution)
-      for (const part of message.serverContent.modelTurn.parts) {
-        if (part.functionCall) {
-          console.log(`[GeminiLiveClient] 🔧 Function call requested: ${part.functionCall.name}`);
-          console.log(`[GeminiLiveClient] Arguments:`, part.functionCall.args);
+      // SAFETY CHECK: Only process function calls if modelTurn and parts exist
+      if (message.serverContent?.modelTurn?.parts) {
+        for (const part of message.serverContent.modelTurn.parts) {
+          if (part.functionCall) {
+            console.log(`[GeminiLiveClient] 🔧 Function call requested: ${part.functionCall.name}`);
+            console.log(`[GeminiLiveClient] Arguments:`, part.functionCall.args);
 
-          // Execute tool via brain if available
-          if (this.brain) {
-            try {
-              const result = await this.brain.executeTool(
-                part.functionCall.name,
-                part.functionCall.args
-              );
-              console.log(`[GeminiLiveClient] ✅ Tool executed:`, result);
+            // Execute tool via brain if available
+            if (this.brain) {
+              try {
+                const result = await this.brain.executeTool(
+                  part.functionCall.name,
+                  part.functionCall.args
+                );
+                console.log(`[GeminiLiveClient] ✅ Tool executed:`, result);
 
-              // Send function response back to Gemini
-              // Note: This requires sending a follow-up message to the session
-              // For now, we'll just log it - full implementation needs session.sendClientContent()
-              console.warn('[GeminiLiveClient] ⚠️ Function result not sent back to Gemini (requires additional API integration)');
-            } catch (error) {
-              console.error('[GeminiLiveClient] ❌ Tool execution failed:', error);
+                // Send function response back to Gemini
+                // Note: This requires sending a follow-up message to the session
+                // For now, we'll just log it - full implementation needs session.sendClientContent()
+                console.warn('[GeminiLiveClient] ⚠️ Function result not sent back to Gemini (requires additional API integration)');
+              } catch (error) {
+                console.error('[GeminiLiveClient] ❌ Tool execution failed:', error);
+              }
+            } else {
+              console.warn('[GeminiLiveClient] ⚠️ Function call requested but brain not available');
             }
-          } else {
-            console.warn('[GeminiLiveClient] ⚠️ Function call requested but brain not available');
           }
         }
       }
