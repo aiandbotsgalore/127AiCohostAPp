@@ -926,12 +926,10 @@ var styles = {
         fontFamily: 'monospace',
         color: '#00ddff',
     },
-    errorToast: {
+    toast: {
         position: 'fixed',
         top: '80px',
         right: '20px',
-        background: 'rgba(255, 68, 68, 0.9)',
-        border: '1px solid rgba(255, 68, 68, 1)',
         borderRadius: '12px',
         padding: '12px 20px',
         fontSize: '12px',
@@ -940,6 +938,62 @@ var styles = {
         animation: 'slideIn 0.3s ease',
         zIndex: 999,
     },
+    emptyState: {
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: '100%',
+        color: '#aaa',
+        padding: '20px',
+        textAlign: 'center',
+        opacity: 0.9,
+    },
+    emptyStateIcon: {
+        fontSize: '48px',
+        marginBottom: '16px',
+        opacity: 0.7,
+        filter: 'grayscale(100%)',
+    },
+    emptyStateText: {
+        fontSize: '14px',
+        lineHeight: '1.6',
+        maxWidth: '250px',
+    },
+    emptyStateSubtext: {
+        fontSize: '12px',
+        color: '#888',
+        marginTop: '8px',
+    },
+};
+
+const AudioMeterWidget: React.FC = () => {
+    const [level, setLevel] = useState(0);
+
+    useEffect(() => {
+        const handler = (event: any, data: any) => {
+            setLevel(data.level);
+        };
+        const cleanup = ipc.on('audio-level', handler);
+        return () => {
+            if (typeof cleanup === 'function') cleanup();
+        };
+    }, []);
+
+    return (
+        <div style={styles.audioMeter}>
+            <div style={styles.meterLabel}>INPUT LEVEL</div>
+            <div style={styles.meterBar}>
+                <div
+                    style={{
+                        ...styles.meterFill,
+                        width: `${level}%`,
+                        backgroundColor: level > 80 ? '#ff4444' : level > 50 ? '#ffaa00' : '#00ff88'
+                    }}
+                />
+            </div>
+        </div>
+    );
 };
 
 const AudioMeterWidget: React.FC = React.memo(() => {
@@ -976,7 +1030,7 @@ const DrSnugglesControlCenter: React.FC = () => {
     const [isLive, setIsLive] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState({ connected: false, quality: 0 });
     const [selectedVoice, setSelectedVoice] = useState('Puck');
-    // audioLevel state removed to prevent high-frequency re-renders
+    // audioLevel state removed for performance - using ref and isolated component
     const [outputVolume, setOutputVolume] = useState(80);
     const [isMuted, setIsMuted] = useState(false);
     const [micMuted, setMicMuted] = useState(false);
@@ -1062,7 +1116,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const [highContrastMode, setHighContrastMode] = useState(false);
     const [fontSize, setFontSize] = useState(100);
     const [collapsedSections, setCollapsedSections] = useState(new Set());
-    const [errorToast, setErrorToast] = useState<string | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
     const [blinkState, setBlinkState] = useState(false);
     const [mouthOpen, setMouthOpen] = useState(0);
 
@@ -1074,14 +1128,14 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
-    const errorToastTimeout = useRef<NodeJS.Timeout | null>(null);
+    const toastTimeout = useRef<NodeJS.Timeout | null>(null);
     const blinkTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Refs for animation loop to avoid re-running effect on high-frequency updates
     const audioLevelRef = useRef(0);
     const vadStatusRef = useRef(vadStatus);
 
-    // Audio level is now updated directly via IPC ref, not state effect
+    // audioLevel sync effect removed - updating ref directly from IPC
 
     useEffect(() => {
         vadStatusRef.current = vadStatus;
@@ -1122,12 +1176,20 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         'Zephyr': 'Light, airy, playful'
     };
 
-    const brainProfiles = {
+    const [brainProfiles, setBrainProfiles] = useState<Record<string, any>>({
         'Standard': { thinking: false, budget: 5000, emotional: true, interrupt: true, sensitivity: 'Medium' },
         'Brief': { thinking: false, budget: 2000, emotional: false, interrupt: true, sensitivity: 'High' },
         'Detailed': { thinking: true, budget: 10000, emotional: true, interrupt: false, sensitivity: 'Low' },
         'Academic': { thinking: true, budget: 8000, emotional: false, interrupt: false, sensitivity: 'Low' },
         'Casual': { thinking: false, budget: 3000, emotional: true, interrupt: true, sensitivity: 'Medium' }
+    });
+
+    const showToast = (message: string, type: 'error' | 'success' = 'success') => {
+        setToast({ message, type });
+        if (toastTimeout.current) {
+            clearTimeout(toastTimeout.current);
+        }
+        toastTimeout.current = setTimeout(() => setToast(null), 3000);
     };
 
     // IPC Listeners
@@ -1137,13 +1199,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         unsubscribers.push(ipc.on('connection-status', (event, data) => {
             setConnectionStatus(data);
             if (data.error) {
-                setErrorToast(data.error);
-                // Clear existing timeout if any
-                if (errorToastTimeout.current) {
-                    clearTimeout(errorToastTimeout.current);
-                }
-                // Set new timeout and store ID for cleanup
-                errorToastTimeout.current = setTimeout(() => setErrorToast(null), 5000);
+                showToast(data.error, 'error');
             }
         }));
 
@@ -1152,7 +1208,6 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         }));
 
         unsubscribers.push(ipc.on('audio-level', (event, data) => {
-            // Update ref directly for canvas animation without triggering re-render
             audioLevelRef.current = data.level;
         }));
 
@@ -1183,9 +1238,9 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
         return () => {
             unsubscribers.forEach(unsub => unsub && unsub());
-            // Clear error toast timeout on unmount
-            if (errorToastTimeout.current) {
-                clearTimeout(errorToastTimeout.current);
+            // Clear toast timeout on unmount
+            if (toastTimeout.current) {
+                clearTimeout(toastTimeout.current);
             }
         };
     }, []);
@@ -1587,6 +1642,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
     const handleApplySystemPrompt = () => {
         ipc.send('system:update-prompt', systemPrompt);
+        showToast('System prompt updated');
     };
 
     const handleSavePrompt = () => {
@@ -1598,6 +1654,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         if (promptNameInput.trim()) {
             setSavedPrompts(prev => [...prev, { name: promptNameInput.trim(), content: systemPrompt }].slice(0, 50)); // Limit to 50 saved prompts
             setIsSavePromptOpen(false);
+            showToast(`Prompt "${promptNameInput.trim()}" saved`);
         }
     };
 
@@ -1662,6 +1719,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         const preset = prompt('Enter preset text:');
         if (preset) {
             setFavoritePresets(prev => [...prev, preset].slice(0, 20)); // Limit to 20 favorite presets
+            showToast('Preset added to favorites');
         }
     };
 
@@ -1683,13 +1741,15 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const handleSaveBrainProfile = () => {
         const name = prompt('Enter profile name:');
         if (name) {
-            brainProfiles[name] = {
+            const newProfile = {
                 thinking: thinkingMode,
                 budget: thinkingBudget,
                 emotional: emotionalRange,
                 interrupt: canInterrupt,
                 sensitivity: listeningSensitivity
             };
+            setBrainProfiles(prev => ({ ...prev, [name]: newProfile }));
+            showToast(`Profile "${name}" saved`);
         }
     };
 
@@ -2054,7 +2114,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                     </select>
                                 </div>
 
-                                {/* Audio Level Meter - Extracted to prevent re-renders */}
+                                {/* Audio Level Meter */}
                                 <AudioMeterWidget />
 
                                 {/* Audio Controls */}
@@ -2289,25 +2349,44 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                         </div>
                     </div>
                     <div style={styles.transcript} ref={transcriptRef}>
-                        {filteredMessages.map((msg, idx) => (
-                            <div key={idx} style={styles.transcriptMessage}>
-                                <div style={styles.transcriptHeader}>
-                                    <span style={{
-                                        ...styles.transcriptSpeaker,
-                                        color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
-                                    }}>
-                                        {msg.speaker || msg.role}
-                                    </span>
-                                    <div style={styles.transcriptActions}>
-                                        <CopyButton text={msg.text} style={styles.copyBtn} />
-                                        <span style={styles.transcriptTime}>
-                                            {new Date(msg.timestamp).toLocaleTimeString()}
-                                        </span>
-                                    </div>
+                        {messages.length === 0 ? (
+                            <div style={styles.emptyState}>
+                                <div style={styles.emptyStateIcon}>💬</div>
+                                <div style={styles.emptyStateText}>
+                                    Conversation is empty.
                                 </div>
-                                <div style={styles.transcriptText}>{msg.text}</div>
+                                <div style={styles.emptyStateSubtext}>
+                                    Go Live or type a context message to start.
+                                </div>
                             </div>
-                        ))}
+                        ) : filteredMessages.length === 0 ? (
+                            <div style={styles.emptyState}>
+                                <div style={styles.emptyStateIcon}>🔍</div>
+                                <div style={styles.emptyStateText}>
+                                    No messages match your search.
+                                </div>
+                            </div>
+                        ) : (
+                            filteredMessages.map((msg, idx) => (
+                                <div key={idx} style={styles.transcriptMessage}>
+                                    <div style={styles.transcriptHeader}>
+                                        <span style={{
+                                            ...styles.transcriptSpeaker,
+                                            color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
+                                        }}>
+                                            {msg.speaker || msg.role}
+                                        </span>
+                                        <div style={styles.transcriptActions}>
+                                            <CopyButton text={msg.text} style={styles.copyBtn} />
+                                            <span style={styles.transcriptTime}>
+                                                {new Date(msg.timestamp).toLocaleTimeString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <div style={styles.transcriptText}>{msg.text}</div>
+                                </div>
+                            ))
+                        )}
                     </div>
                 </div>
 
@@ -2714,10 +2793,16 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                 </div>
             )}
 
-            {/* Error Toast */}
-            {errorToast && (
-                <div style={styles.errorToast}>
-                    ⚠️ {errorToast}
+            {/* Toast Notification */}
+            {toast && (
+                <div style={{
+                    ...styles.toast,
+                    background: toast.type === 'error' ? 'rgba(255, 68, 68, 0.9)' : 'rgba(0, 255, 136, 0.9)',
+                    border: `1px solid ${toast.type === 'error' ? 'rgba(255, 68, 68, 1)' : 'rgba(0, 255, 136, 1)'}`,
+                    color: toast.type === 'error' ? '#fff' : '#000',
+                }}>
+                    {toast.type === 'error' ? '⚠️ ' : '✅ '}
+                    {toast.message}
                 </div>
             )}
 
