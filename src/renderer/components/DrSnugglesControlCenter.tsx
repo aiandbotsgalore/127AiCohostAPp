@@ -996,6 +996,35 @@ const AudioMeterWidget: React.FC = () => {
     );
 };
 
+const AudioMeterWidget: React.FC = React.memo(() => {
+    const [level, setLevel] = useState(0);
+
+    useEffect(() => {
+        // Listen to audio-level events independently to avoid re-rendering the parent
+        const unsub = ipc.on('audio-level', (_event: any, data: any) => {
+            setLevel(data.level);
+        });
+        return () => {
+            if (unsub && typeof unsub === 'function') unsub();
+        };
+    }, []);
+
+    return (
+        <div style={styles.audioMeter}>
+            <div style={styles.meterLabel}>INPUT LEVEL</div>
+            <div style={styles.meterBar}>
+                <div
+                    style={{
+                        ...styles.meterFill,
+                        width: `${level}%`,
+                        backgroundColor: level > 80 ? '#ff4444' : level > 50 ? '#ffaa00' : '#00ff88'
+                    }}
+                />
+            </div>
+        </div>
+    );
+});
+
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
     const [isLive, setIsLive] = useState(false);
