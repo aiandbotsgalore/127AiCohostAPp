@@ -942,12 +942,41 @@ var styles = {
     },
 };
 
+const AudioMeterWidget: React.FC = () => {
+    const [level, setLevel] = useState(0);
+
+    useEffect(() => {
+        const handler = (event: any, data: any) => {
+            setLevel(data.level);
+        };
+        const cleanup = ipc.on('audio-level', handler);
+        return () => {
+            if (typeof cleanup === 'function') cleanup();
+        };
+    }, []);
+
+    return (
+        <div style={styles.audioMeter}>
+            <div style={styles.meterLabel}>INPUT LEVEL</div>
+            <div style={styles.meterBar}>
+                <div
+                    style={{
+                        ...styles.meterFill,
+                        width: `${level}%`,
+                        backgroundColor: level > 80 ? '#ff4444' : level > 50 ? '#ffaa00' : '#00ff88'
+                    }}
+                />
+            </div>
+        </div>
+    );
+};
+
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
     const [isLive, setIsLive] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState({ connected: false, quality: 0 });
     const [selectedVoice, setSelectedVoice] = useState('Puck');
-    const [audioLevel, setAudioLevel] = useState(0);
+    // audioLevel state removed for performance - using ref and isolated component
     const [outputVolume, setOutputVolume] = useState(80);
     const [isMuted, setIsMuted] = useState(false);
     const [micMuted, setMicMuted] = useState(false);
@@ -1049,12 +1078,10 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const blinkTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Refs for animation loop to avoid re-running effect on high-frequency updates
-    const audioLevelRef = useRef(audioLevel);
+    const audioLevelRef = useRef(0);
     const vadStatusRef = useRef(vadStatus);
 
-    useEffect(() => {
-        audioLevelRef.current = audioLevel;
-    }, [audioLevel]);
+    // audioLevel sync effect removed - updating ref directly from IPC
 
     useEffect(() => {
         vadStatusRef.current = vadStatus;
@@ -1125,7 +1152,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         }));
 
         unsubscribers.push(ipc.on('audio-level', (event, data) => {
-            setAudioLevel(data.level);
+            audioLevelRef.current = data.level;
         }));
 
         unsubscribers.push(ipc.on('genai:vadState', (event, data) => {
@@ -2027,18 +2054,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                 </div>
 
                                 {/* Audio Level Meter */}
-                                <div style={styles.audioMeter}>
-                                    <div style={styles.meterLabel}>INPUT LEVEL</div>
-                                    <div style={styles.meterBar}>
-                                        <div
-                                            style={{
-                                                ...styles.meterFill,
-                                                width: `${audioLevel}%`,
-                                                backgroundColor: audioLevel > 80 ? '#ff4444' : audioLevel > 50 ? '#ffaa00' : '#00ff88'
-                                            }}
-                                        />
-                                    </div>
-                                </div>
+                                <AudioMeterWidget />
 
                                 {/* Audio Controls */}
                                 <div style={styles.audioControls}>
