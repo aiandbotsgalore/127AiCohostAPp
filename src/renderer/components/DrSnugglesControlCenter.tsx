@@ -926,12 +926,10 @@ var styles = {
         fontFamily: 'monospace',
         color: '#00ddff',
     },
-    errorToast: {
+    toast: {
         position: 'fixed',
         top: '80px',
         right: '20px',
-        background: 'rgba(255, 68, 68, 0.9)',
-        border: '1px solid rgba(255, 68, 68, 1)',
         borderRadius: '12px',
         padding: '12px 20px',
         fontSize: '12px',
@@ -1062,7 +1060,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const [highContrastMode, setHighContrastMode] = useState(false);
     const [fontSize, setFontSize] = useState(100);
     const [collapsedSections, setCollapsedSections] = useState(new Set());
-    const [errorToast, setErrorToast] = useState<string | null>(null);
+    const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
     const [blinkState, setBlinkState] = useState(false);
     const [mouthOpen, setMouthOpen] = useState(0);
 
@@ -1074,7 +1072,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
-    const errorToastTimeout = useRef<NodeJS.Timeout | null>(null);
+    const toastTimeout = useRef<NodeJS.Timeout | null>(null);
     const blinkTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Refs for animation loop to avoid re-running effect on high-frequency updates
@@ -1122,12 +1120,20 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         'Zephyr': 'Light, airy, playful'
     };
 
-    const brainProfiles = {
+    const [brainProfiles, setBrainProfiles] = useState<Record<string, any>>({
         'Standard': { thinking: false, budget: 5000, emotional: true, interrupt: true, sensitivity: 'Medium' },
         'Brief': { thinking: false, budget: 2000, emotional: false, interrupt: true, sensitivity: 'High' },
         'Detailed': { thinking: true, budget: 10000, emotional: true, interrupt: false, sensitivity: 'Low' },
         'Academic': { thinking: true, budget: 8000, emotional: false, interrupt: false, sensitivity: 'Low' },
         'Casual': { thinking: false, budget: 3000, emotional: true, interrupt: true, sensitivity: 'Medium' }
+    });
+
+    const showToast = (message: string, type: 'error' | 'success' = 'success') => {
+        setToast({ message, type });
+        if (toastTimeout.current) {
+            clearTimeout(toastTimeout.current);
+        }
+        toastTimeout.current = setTimeout(() => setToast(null), 3000);
     };
 
     // IPC Listeners
@@ -1137,13 +1143,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         unsubscribers.push(ipc.on('connection-status', (event, data) => {
             setConnectionStatus(data);
             if (data.error) {
-                setErrorToast(data.error);
-                // Clear existing timeout if any
-                if (errorToastTimeout.current) {
-                    clearTimeout(errorToastTimeout.current);
-                }
-                // Set new timeout and store ID for cleanup
-                errorToastTimeout.current = setTimeout(() => setErrorToast(null), 5000);
+                showToast(data.error, 'error');
             }
         }));
 
@@ -1182,9 +1182,9 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
         return () => {
             unsubscribers.forEach(unsub => unsub && unsub());
-            // Clear error toast timeout on unmount
-            if (errorToastTimeout.current) {
-                clearTimeout(errorToastTimeout.current);
+            // Clear toast timeout on unmount
+            if (toastTimeout.current) {
+                clearTimeout(toastTimeout.current);
             }
         };
     }, []);
@@ -1586,6 +1586,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
     const handleApplySystemPrompt = () => {
         ipc.send('system:update-prompt', systemPrompt);
+        showToast('System prompt updated');
     };
 
     const handleSavePrompt = () => {
@@ -1597,6 +1598,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         if (promptNameInput.trim()) {
             setSavedPrompts(prev => [...prev, { name: promptNameInput.trim(), content: systemPrompt }].slice(0, 50)); // Limit to 50 saved prompts
             setIsSavePromptOpen(false);
+            showToast(`Prompt "${promptNameInput.trim()}" saved`);
         }
     };
 
@@ -1661,6 +1663,7 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         const preset = prompt('Enter preset text:');
         if (preset) {
             setFavoritePresets(prev => [...prev, preset].slice(0, 20)); // Limit to 20 favorite presets
+            showToast('Preset added to favorites');
         }
     };
 
@@ -1682,13 +1685,15 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const handleSaveBrainProfile = () => {
         const name = prompt('Enter profile name:');
         if (name) {
-            brainProfiles[name] = {
+            const newProfile = {
                 thinking: thinkingMode,
                 budget: thinkingBudget,
                 emotional: emotionalRange,
                 interrupt: canInterrupt,
                 sensitivity: listeningSensitivity
             };
+            setBrainProfiles(prev => ({ ...prev, [name]: newProfile }));
+            showToast(`Profile "${name}" saved`);
         }
     };
 
@@ -2713,10 +2718,16 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                 </div>
             )}
 
-            {/* Error Toast */}
-            {errorToast && (
-                <div style={styles.errorToast}>
-                    ⚠️ {errorToast}
+            {/* Toast Notification */}
+            {toast && (
+                <div style={{
+                    ...styles.toast,
+                    background: toast.type === 'error' ? 'rgba(255, 68, 68, 0.9)' : 'rgba(0, 255, 136, 0.9)',
+                    border: `1px solid ${toast.type === 'error' ? 'rgba(255, 68, 68, 1)' : 'rgba(0, 255, 136, 1)'}`,
+                    color: toast.type === 'error' ? '#fff' : '#000',
+                }}>
+                    {toast.type === 'error' ? '⚠️ ' : '✅ '}
+                    {toast.message}
                 </div>
             )}
 
