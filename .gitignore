@@ -46,3 +46,5 @@ config.json
 *.tmp
 *.temp
 node_modules/
+undefined/
+temp/
