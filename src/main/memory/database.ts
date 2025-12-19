@@ -1,28 +1,54 @@
 /**
- * Session Memory Service - Dexie.js
+ * Session Memory Service - File-based Storage
  *
  * Manages persistent storage for session summaries and conversation history.
+ * Uses JSON file storage instead of IndexedDB (which is not available in Node.js/main process).
  */
 
-import Dexie, { Table } from 'dexie';
+import fs from 'fs';
+import path from 'path';
+import { app } from 'electron';
 import { SessionSummary } from '../../shared/types';
 
-export class SessionMemoryDB extends Dexie {
-  summaries!: Table<SessionSummary, string>;
-
-  constructor() {
-    super('SnugglesMemory');
-    this.version(1).stores({
-      summaries: 'id, timestamp, turnCount'
-    });
-  }
-}
-
 export class SessionMemoryService {
-  private db: SessionMemoryDB;
+  private dbPath: string;
+  private summaries: SessionSummary[] = [];
 
   constructor() {
-    this.db = new SessionMemoryDB();
+    // Store in userData directory
+    this.dbPath = path.join(app.getPath('userData'), 'session-memory.json');
+    this.loadFromDisk();
+  }
+
+  /**
+   * Load summaries from disk.
+   */
+  private loadFromDisk(): void {
+    try {
+      if (fs.existsSync(this.dbPath)) {
+        const data = fs.readFileSync(this.dbPath, 'utf-8');
+        this.summaries = JSON.parse(data);
+        console.log(`[SessionMemory] Loaded ${this.summaries.length} summaries from disk`);
+      } else {
+        console.log('[SessionMemory] No existing data file, starting fresh');
+        this.summaries = [];
+      }
+    } catch (error) {
+      console.error('[SessionMemory] Failed to load from disk:', error);
+      this.summaries = [];
+    }
+  }
+
+  /**
+   * Save summaries to disk.
+   */
+  private saveToDisk(): void {
+    try {
+      fs.writeFileSync(this.dbPath, JSON.stringify(this.summaries, null, 2), 'utf-8');
+      console.log(`[SessionMemory] Saved ${this.summaries.length} summaries to disk`);
+    } catch (error) {
+      console.error('[SessionMemory] Failed to save to disk:', error);
+    }
   }
 
   /**
@@ -30,7 +56,12 @@ export class SessionMemoryService {
    * @param summary The session summary to add.
    */
   async addSummary(summary: SessionSummary): Promise<void> {
-    await this.db.summaries.put(summary);
+    this.summaries.push(summary);
+    // Keep only last 100 summaries
+    if (this.summaries.length > 100) {
+      this.summaries = this.summaries.slice(-100);
+    }
+    this.saveToDisk();
   }
 
   /**
@@ -38,19 +69,26 @@ export class SessionMemoryService {
    * @param count Number of summaries to retrieve.
    */
   async getRecentSummaries(count: number): Promise<string[]> {
-    const summaries = await this.db.summaries
-      .orderBy('timestamp')
-      .reverse()
-      .limit(count)
-      .toArray();
+    // Sort by timestamp (newest first) and take the requested count
+    const sorted = [...this.summaries]
+      .sort((a, b) => b.timestamp - a.timestamp)
+      .slice(0, count);
 
-    return summaries.map(s => s.summary);
+    return sorted.map(s => s.summary);
   }
 
   /**
    * Get all summaries.
    */
   async getAllSummaries(): Promise<SessionSummary[]> {
-    return await this.db.summaries.orderBy('timestamp').reverse().toArray();
+    return [...this.summaries].sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  /**
+   * Clear all summaries.
+   */
+  async clearAll(): Promise<void> {
+    this.summaries = [];
+    this.saveToDisk();
   }
 }

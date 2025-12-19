@@ -145,7 +145,12 @@ export class AudioCaptureService {
       this.workletNode.port.onmessage = (e) => {
         if (!this.isActive) return;
         const inputData = e.data; // Float32Array from the processor
-        window.snugglesAPI.genaiSendAudioChunk(inputData);
+        // Defensive check: Only send audio if running in Electron with snugglesAPI available
+        // In browser-only mode (Vite dev server), snugglesAPI is undefined
+        if (window.snugglesAPI?.genaiSendAudioChunk) {
+          window.snugglesAPI.genaiSendAudioChunk(inputData);
+        }
+        // Silently skip when not in Electron context - this is expected for browser-only testing
       };
 
       source.connect(this.workletNode);

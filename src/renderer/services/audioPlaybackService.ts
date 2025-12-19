@@ -125,6 +125,7 @@ export class AudioPlaybackService {
 
     try {
       this._audioContext = new AudioContext({ sampleRate: this.sampleRate });
+      console.log(`[AudioPlaybackService] 🎵 DIAGNOSTIC: AudioContext created. State: ${this._audioContext.state}, Sample rate: ${this._audioContext.sampleRate}`);
       this.nextStartTime = this._audioContext.currentTime;
 
       // Create gain node for visualizer chain
@@ -133,19 +134,27 @@ export class AudioPlaybackService {
 
       this._isActive = true;
 
-      // Listen for incoming audio - store cleanup function
-      this.cleanupAudioReceived = window.snugglesAPI.onGenaiAudioReceived((audioData: Float32Array | ArrayBuffer | Uint8Array) => {
-        this.queueAudio(audioData);
-      });
-
-      // Listen for interruptions - store cleanup function
-      if (window.snugglesAPI.onGenaiInterruption) {
-        this.cleanupInterruption = window.snugglesAPI.onGenaiInterruption(() => {
-          this.cancelPlayback();
+      // Defensive check: Only set up IPC listeners if running in Electron with snugglesAPI available
+      if (window.snugglesAPI?.onGenaiAudioReceived) {
+        console.log('[AudioPlaybackService] 🎵 DIAGNOSTIC: Setting up IPC listener for audio...');
+        // Listen for incoming audio - store cleanup function
+        this.cleanupAudioReceived = window.snugglesAPI.onGenaiAudioReceived((audioData: Float32Array | ArrayBuffer | Uint8Array) => {
+          console.log(`[AudioPlaybackService] 🎵 DIAGNOSTIC: Received audio from IPC! Type: ${audioData.constructor.name}, Length: ${audioData.length}`);
+          this.queueAudio(audioData);
         });
-      }
 
-      console.log('[AudioPlaybackService] Audio playback ready');
+        // Listen for interruptions - store cleanup function
+        if (window.snugglesAPI.onGenaiInterruption) {
+          this.cleanupInterruption = window.snugglesAPI.onGenaiInterruption(() => {
+            this.cancelPlayback();
+          });
+        }
+        console.log('[AudioPlaybackService] Audio playback ready (Electron mode with IPC)');
+      } else {
+        // Browser-only mode - audio playback still works for test tones, but no Gemini audio
+        console.warn('[AudioPlaybackService] ⚠️ DIAGNOSTIC: snugglesAPI not available! Running in browser-only mode.');
+        console.log('[AudioPlaybackService] Audio playback ready (Browser-only mode - no Gemini IPC)');
+      }
     } catch (error) {
       console.error('[AudioPlaybackService] Failed to start playback:', error);
     }
@@ -158,16 +167,20 @@ export class AudioPlaybackService {
    * @param {Float32Array | ArrayBuffer | Uint8Array} audioData - The audio samples to play.
    */
   private async queueAudio(audioData: Float32Array | ArrayBuffer | Uint8Array): Promise<void> {
+    console.log(`[AudioPlaybackService] 🎵 DIAGNOSTIC: queueAudio called. Active: ${this._isActive}, Context: ${!!this._audioContext}, GainNode: ${!!this.gainNode}`);
+    
     if (!this._isActive || !this._audioContext || !this.gainNode) {
-      console.warn('[AudioPlaybackService] Cannot queue audio - service not active or missing context');
+      console.warn('[AudioPlaybackService] ⚠️ DIAGNOSTIC: Cannot queue audio - service not active or missing context');
       return;
     }
 
     try {
       // Ensure context is running (browser autoplay policy)
+      console.log(`[AudioPlaybackService] 🎵 DIAGNOSTIC: AudioContext state before: ${this._audioContext.state}`);
       if (this._audioContext.state === 'suspended') {
-        console.log('[AudioPlaybackService] Resuming suspended AudioContext...');
+        console.log('[AudioPlaybackService] ⚠️ DIAGNOSTIC: AudioContext SUSPENDED - attempting to resume...');
         await this._audioContext.resume();
+        console.log(`[AudioPlaybackService] 🎵 DIAGNOSTIC: AudioContext state after resume: ${this._audioContext.state}`);
       }
 
       let pcmData: Float32Array;
@@ -200,8 +213,17 @@ export class AudioPlaybackService {
 
       if (!pcmData || pcmData.length === 0) return;
 
-      const buffer = this._audioContext.createBuffer(1, pcmData.length, this._audioContext.sampleRate);
+      // RE-CHECK ACTIVE STATE: Service might have been stopped while decoding was in progress
+      if (!this._isActive || !this._audioContext) return;
+
+      // CRITICAL FIX: The audio coming from main process is ALWAYS 48kHz (upsampled in main).
+      // We must tell the AudioContext that this buffer IS 48kHz, regardless of the system's hardware rate.
+      // If system is 48kHz: 48->48 (perfect).
+      // If system is 44.1kHz: 48->44.1 (browser handles resampling automatically).
+      // If we used this._audioContext.sampleRate here (e.g. 44.1k), it would play 48k data at 44.1k speed (slow/drunk).
+      const buffer = this._audioContext.createBuffer(1, pcmData.length, 48000);
       buffer.copyToChannel(pcmData, 0);
+      console.log(`[AudioPlaybackService] 🎵 DIAGNOSTIC: Buffer created. Channels: ${buffer.numberOfChannels}, Length: ${buffer.length}, Duration: ${buffer.duration}s`);
 
       const source = this._audioContext.createBufferSource();
       source.buffer = buffer;
@@ -215,8 +237,10 @@ export class AudioPlaybackService {
       // Ensure we schedule in the future, with a small buffer
       const startTime = Math.max(currentTime + 0.05, this.nextStartTime);
 
+      console.log(`[AudioPlaybackService] 🎵 DIAGNOSTIC: Scheduling playback. Current: ${currentTime.toFixed(3)}s, Start: ${startTime.toFixed(3)}s, Duration: ${buffer.duration.toFixed(3)}s`);
       source.start(startTime);
       this.nextStartTime = startTime + buffer.duration;
+      console.log(`[AudioPlaybackService] ✅ DIAGNOSTIC: Audio source started successfully!`);
 
       // Clean up on ended
       source.onended = () => {

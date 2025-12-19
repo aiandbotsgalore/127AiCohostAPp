@@ -9,12 +9,14 @@
  * - Latency tracking
  */
 
-const electron = require('electron');
-const { app, BrowserWindow, ipcMain } = electron;
 import type { BrowserWindow as BrowserWindowType, IpcMainEvent } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import dotenv from 'dotenv';
+
+// Must use require for Electron in CommonJS mode - two-step pattern for proper initialization
+const electron = require('electron');
+const { app, BrowserWindow, ipcMain } = electron;
 import { GeminiLiveClient } from './llm/geminiLiveClient';
 import { Modality } from '@google/genai';
 import { GeminiDiagnostics } from './llm/geminiDiagnostics';
@@ -22,8 +24,9 @@ import { AudioManager2025 } from './audio/audioManager2025';
 import { ElevenLabsService } from './tts/elevenlabsService';
 
 // 🔍 DEBUG: Capture all logs to file for analysis
-const LOG_FILE = path.join(app.getPath('userData'), 'snuggles_debug.log');
-const logStream = fs.createWriteStream(LOG_FILE, { flags: 'w' });
+// NOTE: LOG_FILE is initialized later after app.whenReady() since app.getPath() requires app to be ready
+let LOG_FILE: string | null = null;
+let logStream: fs.WriteStream | null = null;
 
 function fileLog(level: string, ...args: any[]) {
   const msg = args.map(a => {
@@ -47,7 +50,9 @@ function fileLog(level: string, ...args: any[]) {
     }
     return String(a);
   }).join(' ');
-  logStream.write(`[${new Date().toISOString()}] [${level}] ${msg}\n`);
+  if (logStream) {
+    logStream.write(`[${new Date().toISOString()}] [${level}] ${msg}\n`);
+  }
 }
 
 // Hook into console
@@ -59,7 +64,6 @@ console.log = (...args) => { fileLog('INFO', ...args); originalLog(...args); };
 console.error = (...args) => { fileLog('ERROR', ...args); originalError(...args); };
 console.warn = (...args) => { fileLog('WARN', ...args); originalWarn(...args); };
 
-console.log(`[Main] 📝 Logging validation to: ${LOG_FILE}`);
 import { KnowledgeStore } from './knowledge/store';
 import { SessionMemoryService } from './memory/database';
 import { DrSnugglesBrain } from '../brain/DrSnugglesBrain';
@@ -110,8 +114,6 @@ if (API_KEY) {
   console.error('[ENV] ❌ API Key is EMPTY! Check your .env.local file');
 }
 
-console.log('DEBUG: app is', app);
-
 /**
  * Configuration constants for AI behavior
  */
@@ -150,7 +152,7 @@ class SnugglesApp2025 {
   private brain: DrSnugglesBrain; // Brain integration
   private config: AppConfig;
   private latencyMetrics: LatencyMetrics[] = [];
-  private useCustomVoice: boolean = true; // Toggle for ElevenLabs
+  private useCustomVoice: boolean = false; // Toggle for ElevenLabs (false = Gemini native audio, true = ElevenLabs custom)
   private voiceTestTimeout: NodeJS.Timeout | null = null; // Cleanup for voice test disconnect
 
   /**
@@ -278,14 +280,20 @@ class SnugglesApp2025 {
 
     // Audio received
     this.geminiLiveClient.on('audioReceived', (audioData, latencyMs) => {
+      console.log(`[Main] 🎵 DIAGNOSTIC: audioReceived event triggered. Audio length: ${audioData.length}, useCustomVoice: ${this.useCustomVoice}`);
+
       // Process audio (volume calculation)
       const processedAudio = this.audioManager.processOutputAudio(audioData);
+      console.log(`[Main] 🎵 DIAGNOSTIC: Processed audio length: ${processedAudio.length}`);
 
       // Forward to renderer for playback
       // ONLY forward if using Gemini voice (native audio)
       // If using custom voice, we rely on ElevenLabs service to send audio
       if (!this.useCustomVoice) {
+        console.log(`[Main] 🎵 DIAGNOSTIC: Forwarding Gemini native audio to renderer (${processedAudio.length} samples)`);
         this.mainWindow?.webContents.send(IPC_CHANNELS.GENAI_AUDIO_RECEIVED, processedAudio);
+      } else {
+        console.warn(`[Main] ⚠️ DIAGNOSTIC: Audio BLOCKED by useCustomVoice toggle! Set useCustomVoice=false to hear Gemini voice.`);
       }
 
       // Track latency
@@ -317,7 +325,10 @@ class SnugglesApp2025 {
     // Text message received
     this.geminiLiveClient.on('message', async (message) => {
       console.log(`[Main] 📝 Text received: ${message.text.substring(0, 50)}...`);
-      this.mainWindow?.webContents.send(IPC_CHANNELS.MESSAGE_RECEIVED, message);
+      this.mainWindow?.webContents.send(IPC_CHANNELS.MESSAGE_RECEIVED, {
+        id: (message as any).id || crypto.randomUUID(),
+        ...message
+      });
 
       // Use ElevenLabs for custom voice synthesis
       if (this.useCustomVoice && message.role === 'assistant') {
@@ -411,6 +422,7 @@ class SnugglesApp2025 {
           sessionSummaries,
           knowledgeContext,
           responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined,
+          enableInputTranscription: this.useCustomVoice,
           ...config
         });
 
@@ -466,10 +478,9 @@ class SnugglesApp2025 {
       return true;
     });
 
-    ipcMain.handle(IPC_CHANNELS.SEND_MESSAGE, async (_event: any, text: string) => {
-      // Note: GeminiLiveClient is audio-only, text messages are not supported
-      console.log('[Main] Text message received (audio-only mode):', text);
-      return true;
+    ipcMain.on(IPC_CHANNELS.SEND_MESSAGE, async (_event: any, text: string) => {
+      console.log('[Main] 📝 Text message received:', text);
+      await this.geminiLiveClient.sendText(text);
     });
 
     ipcMain.handle(IPC_CHANNELS.TOGGLE_MUTE, async () => {
@@ -510,7 +521,7 @@ class SnugglesApp2025 {
 
     ipcMain.handle(IPC_CHANNELS.LOAD_KNOWLEDGE, async () => {
       try {
-        const knowledgeDir = path.join(__dirname, '../../knowledge');
+        const knowledgeDir = path.join(__dirname, '../../../knowledge');
         await this.knowledgeStore.loadDocuments(knowledgeDir);
         return { success: true, count: await this.knowledgeStore.getDocumentCount() };
       } catch (error: any) {
@@ -522,23 +533,20 @@ class SnugglesApp2025 {
     // ===== GUI Handlers (December 2025) =====
 
     ipcMain.on('stream:toggle', async (_event: IpcMainEvent, isLive: boolean) => {
-      try {
-        console.log(`[Main] 🎚️ stream:toggle: ${isLive}`);
-        if (isLive) {
-          const sessionSummaries = await this.getRecentSummaries(3);
-          const knowledgeContext = await this.knowledgeStore.getSystemContext();
-          await this.geminiLiveClient.connect({
-            sessionSummaries,
-            knowledgeContext,
-            // If using custom voice, explicitly request TEXT modality only (saves bandwidth/avoids double-talk)
-            // If using Gemini voice, default to AUDIO (managed by client)
-            responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined
-          });
-        } else {
-          await this.geminiLiveClient.disconnect();
-        }
-      } catch (error: any) {
-        console.error('[Main] ❌ Stream toggle failed:', error);
+      console.log(`[Main] 🎚️ stream:toggle: ${isLive}`);
+      if (isLive) {
+        const sessionSummaries = await this.getRecentSummaries(3);
+        const knowledgeContext = await this.knowledgeStore.getSystemContext();
+        await this.geminiLiveClient.connect({
+          sessionSummaries,
+          knowledgeContext,
+          // If using custom voice, explicitly request TEXT modality only (saves bandwidth/avoids double-talk)
+          // If using Gemini voice, default to AUDIO (managed by client)
+          responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined,
+          enableInputTranscription: this.useCustomVoice
+        });
+      } else {
+        await this.geminiLiveClient.disconnect();
       }
     });
 
@@ -728,6 +736,30 @@ class SnugglesApp2025 {
       console.log(`[Renderer][${level.toUpperCase()}]`, ...args);
     });
 
+    ipcMain.on('voice:toggle-custom', async (_event: IpcMainEvent, useCustom: boolean) => {
+      console.log(`[Main] 🎙️ voice:toggle-custom: ${useCustom} (${useCustom ? 'ElevenLabs Custom' : 'Gemini Native Charon'})`);
+      this.useCustomVoice = useCustom;
+
+      // Reconnect to apply modality change (TEXT for custom voice, AUDIO for Gemini)
+      if (this.geminiLiveClient.connected) {
+        console.log(`[Main] 🔄 Reconnecting to apply voice mode change...`);
+        await this.geminiLiveClient.disconnect();
+        await new Promise(resolve => setTimeout(resolve, 500));
+
+        const sessionSummaries = await this.getRecentSummaries(3);
+        const knowledgeContext = await this.knowledgeStore.getSystemContext();
+
+        await this.geminiLiveClient.connect({
+          sessionSummaries,
+          knowledgeContext,
+          responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined,
+          enableInputTranscription: this.useCustomVoice
+        });
+
+        console.log(`[Main] ✅ Voice mode applied: ${useCustom ? 'ElevenLabs Custom (TEXT only)' : 'Gemini Native (AUDIO)'}`);
+      }
+    });
+
     ipcMain.on('system:update-prompt', async (_event: IpcMainEvent, prompt: string) => {
       console.log(`[Main] 📝 system:update-prompt received`);
       console.log(`[Main] 📝 Updating Brain system instruction...`);
@@ -754,7 +786,8 @@ class SnugglesApp2025 {
           sessionSummaries,
           knowledgeContext,
           // Maintain the correct modality setting
-          responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined
+          responseModalities: this.useCustomVoice ? [Modality.TEXT] : undefined,
+          enableInputTranscription: this.useCustomVoice
         });
 
         console.log(`[Main] ✅ System prompt applied and session restarted`);
@@ -885,7 +918,7 @@ class SnugglesApp2025 {
     }
 
     // Auto-load knowledge base
-    const knowledgeDir = path.join(__dirname, '../../knowledge');
+    const knowledgeDir = path.join(__dirname, '../../../knowledge');
     try {
       await this.knowledgeStore.loadDocuments(knowledgeDir);
       console.log('[Main] ✅ Knowledge base loaded');
@@ -903,6 +936,11 @@ class SnugglesApp2025 {
    */
   async initialize(): Promise<void> {
     await app.whenReady();
+
+    // Initialize logging after app is ready
+    LOG_FILE = path.join(app.getPath('userData'), 'snuggles_debug.log');
+    logStream = fs.createWriteStream(LOG_FILE, { flags: 'w' });
+    console.log(`[Main] 📝 Logging to: ${LOG_FILE}`);
 
     // Initialize brain memory after app is ready
     console.log('🧠 Initializing brain memory...');
@@ -953,5 +991,13 @@ class SnugglesApp2025 {
 }
 
 // Bootstrap
+// Add safety check to ensure Electron modules are loaded
+if (typeof app === 'undefined' || !app || !app.whenReady) {
+  console.error('❌ FATAL: Electron app module failed to load!');
+  console.error('   This usually means Electron is not properly installed or the require() failed');
+  console.error('   Try: npm install --save-dev electron');
+  process.exit(1);
+}
+
 const snugglesApp = new SnugglesApp2025();
 snugglesApp.initialize().catch(console.error);

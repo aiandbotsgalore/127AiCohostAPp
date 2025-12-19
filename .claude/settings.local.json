@@ -7,7 +7,8 @@
       "Bash(ls:*)",
       "Bash(git pull:*)",
       "Bash(npm run dev:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(git remote:*)"
     ],
     "deny": [],
     "ask": []

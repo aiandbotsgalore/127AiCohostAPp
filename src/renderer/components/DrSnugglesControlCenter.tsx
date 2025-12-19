@@ -1,21 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
-
-// Simulated IPC for demo
-const mockIPC = {
-    // ... existing mockIPC code ...
-    on: (channel: string, callback: any) => {
-        // ...
-        return () => { };
-    },
-    send: (channel: string, data: any) => {
-        if (channel === 'log:message') return;
-        console.log(`IPC Send [${channel}]:`, data);
-    }
-};
-
-const ipc = (window as any).electron ? (window as any).electron : mockIPC;
+import { ipc } from '../ipc';
+import { AudioMeterWidget } from './AudioMeterWidget';
+import { InputModal } from './InputModal';
+import { styles } from './styles';
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
     const [copied, setCopied] = useState(false);
@@ -51,986 +40,12 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
     );
 };
 
-var styles = {
-    container: {
-        width: '100vw',
-        height: '100vh',
-        backgroundColor: '#0a0014',
-        color: '#ffffff',
-        fontFamily: "'Segoe UI', 'Roboto', sans-serif",
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-    },
-    header: {
-        height: '60px',
-        background: 'linear-gradient(180deg, rgba(138, 43, 226, 0.15) 0%, rgba(138, 43, 226, 0.05) 100%)',
-        backdropFilter: 'blur(10px)',
-        borderBottom: '1px solid rgba(138, 43, 226, 0.3)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        padding: '0 20px',
-        WebkitAppRegion: 'drag',
-    },
-    headerLeft: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '16px',
-        WebkitAppRegion: 'no-drag',
-    },
-    headerCenter: {
-        flex: 1,
-        textAlign: 'center',
-    },
-    headerRight: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '12px',
-        WebkitAppRegion: 'no-drag',
-    },
-    statusGroup: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    statusIndicator: {
-        width: '12px',
-        height: '12px',
-        borderRadius: '50%',
-        boxShadow: '0 0 10px currentColor',
-    },
-    statusText: {
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-    },
-    goLiveButton: {
-        background: 'rgba(0, 255, 136, 0.2)',
-        border: '1px solid rgba(0, 255, 136, 0.4)',
-        color: '#00ff88',
-        padding: '10px 20px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-    },
-    goLiveButtonActive: {
-        background: 'rgba(255, 68, 68, 0.2)',
-        border: '1px solid rgba(255, 68, 68, 0.4)',
-        color: '#ff4444',
-    },
-    title: {
-        fontSize: '16px',
-        fontWeight: '700',
-        letterSpacing: '2px',
-        background: 'linear-gradient(90deg, #00ddff, #8a2be2)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-    },
-    qualityIndicator: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    qualityBars: {
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: '2px',
-        height: '20px',
-    },
-    qualityBar: {
-        width: '3px',
-        borderRadius: '2px',
-        transition: 'background-color 0.3s',
-    },
-    qualityText: {
-        fontSize: '10px',
-        color: '#888',
-    },
-    settingsButton: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#ffffff',
-        width: '36px',
-        height: '36px',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        fontSize: '16px',
-        transition: 'all 0.2s',
-    },
-    statusBar: {
-        display: 'flex',
-        gap: '20px',
-        padding: '8px 20px',
-        background: 'rgba(0, 0, 0, 0.3)',
-        borderBottom: '1px solid rgba(138, 43, 226, 0.2)',
-    },
-    statusBarItem: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    statusBarLabel: {
-        fontSize: '9px',
-        color: '#888',
-        letterSpacing: '1px',
-    },
-    statusBarValue: {
-        fontSize: '12px',
-        fontWeight: '600',
-        color: '#00ddff',
-    },
-    miniGraph: {
-        display: 'flex',
-        alignItems: 'flex-end',
-        gap: '1px',
-        height: '16px',
-    },
-    miniGraphBar: {
-        width: '2px',
-        borderRadius: '1px',
-        transition: 'height 0.3s',
-    },
-    mainLayout: {
-        flex: 1,
-        display: 'flex',
-        gap: '16px',
-        padding: '16px',
-        overflow: 'hidden',
-    },
-    leftSidebar: {
-        width: '320px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-        overflow: 'auto',
-    },
-    centerPanel: {
-        flex: 1,
-        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.05), rgba(75, 0, 130, 0.05))',
-        border: '1px solid rgba(138, 43, 226, 0.2)',
-        borderRadius: '16px',
-        backdropFilter: 'blur(10px)',
-        display: 'flex',
-        flexDirection: 'column',
-        overflow: 'hidden',
-    },
-    rightSidebar: {
-        width: '340px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-        overflow: 'auto',
-    },
-    section: {
-        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(75, 0, 130, 0.05))',
-        border: '1px solid rgba(138, 43, 226, 0.2)',
-        borderRadius: '12px',
-        backdropFilter: 'blur(10px)',
-        padding: '16px',
-    },
-    sectionHeaderRow: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '12px',
-        paddingBottom: '8px',
-        borderBottom: '1px solid rgba(138, 43, 226, 0.2)',
-    },
-    sectionHeader: {
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '2px',
-        color: '#8a2be2',
-    },
-    collapseBtn: {
-        background: 'none',
-        border: 'none',
-        color: '#8a2be2',
-        cursor: 'pointer',
-        fontSize: '12px',
-        padding: '4px 8px',
-    },
-    avatarSection: {
-        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.1), rgba(75, 0, 130, 0.05))',
-        border: '1px solid rgba(138, 43, 226, 0.2)',
-        borderRadius: '12px',
-        backdropFilter: 'blur(10px)',
-        padding: '20px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '16px',
-    },
-    avatarContainer: {
-        position: 'relative',
-        width: '200px',
-        height: '200px',
-        margin: '0 auto',
-    },
-    smokeCanvas: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '200px',
-        height: '200px',
-        pointerEvents: 'none',
-    },
-    avatarSvg: {
-        width: '200px',
-        height: '200px',
-    },
-    shirtLabel: {
-        position: 'absolute',
-        bottom: '10px',
-        left: '50%',
-        transform: 'translateX(-50%)',
-        background: '#000',
-        color: '#fff',
-        padding: '4px 12px',
-        borderRadius: '4px',
-        fontSize: '14px',
-        fontWeight: '700',
-        letterSpacing: '2px',
-    },
-    statusButtons: {
-        display: 'flex',
-        gap: '8px',
-    },
-    statusBtn: {
-        flex: 1,
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '10px',
-        fontWeight: '700',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-    },
-    statusBtnActive: {
-        background: 'rgba(0, 255, 136, 0.2)',
-        border: '1px solid rgba(0, 255, 136, 0.4)',
-        color: '#00ff88',
-    },
-    currentStatus: {
-        fontSize: '11px',
-        color: '#888',
-        textAlign: 'center',
-    },
-    voiceSelect: {
-        width: '100%',
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '13px',
-        marginBottom: '8px',
-        cursor: 'pointer',
-    },
-    voiceDescription: {
-        fontSize: '11px',
-        color: '#888',
-        fontStyle: 'italic',
-        marginBottom: '12px',
-    },
-    testButton: {
-        width: '100%',
-        background: 'rgba(0, 221, 255, 0.2)',
-        border: '1px solid rgba(0, 221, 255, 0.4)',
-        color: '#00ddff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        fontWeight: '700',
-        cursor: 'pointer',
-        marginBottom: '12px',
-    },
-    modControl: {
-        marginBottom: '12px',
-    },
-    modLabel: {
-        fontSize: '10px',
-        color: '#888',
-        display: 'block',
-        marginBottom: '4px',
-    },
-    modSlider: {
-        width: '100%',
-    },
-    styleSelect: {
-        width: '100%',
-        background: 'rgba(30, 30, 60, 0.8)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px 10px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        cursor: 'pointer',
-    },
-    audioMeter: {
-        marginBottom: '12px',
-    },
-    meterLabel: {
-        fontSize: '10px',
-        color: '#888',
-        letterSpacing: '1px',
-        marginBottom: '6px',
-    },
-    meterBar: {
-        width: '100%',
-        height: '8px',
-        background: 'rgba(0, 0, 0, 0.3)',
-        borderRadius: '4px',
-        overflow: 'hidden',
-    },
-    meterFill: {
-        height: '100%',
-        transition: 'width 0.1s',
-        borderRadius: '4px',
-    },
-    audioControls: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '12px',
-    },
-    audioControlRow: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    audioLabel: {
-        fontSize: '10px',
-        color: '#888',
-        minWidth: '50px',
-    },
-    muteBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        width: '36px',
-        height: '36px',
-        borderRadius: '8px',
-        cursor: 'pointer',
-        fontSize: '16px',
-        transition: 'all 0.2s',
-    },
-    muteBtnActive: {
-        background: 'rgba(255, 68, 68, 0.3)',
-        borderColor: 'rgba(255, 68, 68, 0.5)',
-    },
-    volumeSlider: {
-        flex: 1,
-    },
-    volumeValue: {
-        fontSize: '11px',
-        minWidth: '40px',
-        textAlign: 'right',
-        color: '#00ddff',
-    },
-    interruptBtn: {
-        flex: 1,
-        background: 'rgba(255, 68, 68, 0.2)',
-        border: '1px solid rgba(255, 68, 68, 0.4)',
-        color: '#ff4444',
-        padding: '8px',
-        borderRadius: '8px',
-        fontSize: '11px',
-        fontWeight: '700',
-        cursor: 'pointer',
-    },
-    profileSelect: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '12px',
-    },
-    profileLabel: {
-        fontSize: '11px',
-        color: '#888',
-    },
-    profileDropdown: {
-        flex: 1,
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        cursor: 'pointer',
-    },
-    saveProfileBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        width: '32px',
-        height: '32px',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        fontSize: '14px',
-    },
-    controlItem: {
-        marginBottom: '12px',
-    },
-    controlLabel: {
-        fontSize: '12px',
-        color: '#ddd',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '4px',
-    },
-    checkbox: {
-        width: '16px',
-        height: '16px',
-        cursor: 'pointer',
-    },
-    activeBadge: {
-        marginLeft: 'auto',
-        background: 'rgba(0, 255, 136, 0.2)',
-        border: '1px solid rgba(0, 255, 136, 0.4)',
-        padding: '2px 6px',
-        borderRadius: '8px',
-        fontSize: '8px',
-        color: '#00ff88',
-        letterSpacing: '1px',
-    },
-    budgetControl: {
-        marginTop: '8px',
-        marginLeft: '24px',
-    },
-    budgetSlider: {
-        width: '100%',
-        marginBottom: '4px',
-    },
-    budgetValue: {
-        fontSize: '11px',
-        color: '#8a2be2',
-    },
-    sensitivitySelect: {
-        width: '100%',
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '12px',
-        marginTop: '6px',
-        cursor: 'pointer',
-    },
-    analytics: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-    },
-    analyticsRow: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        fontSize: '11px',
-        color: '#ddd',
-    },
-    analyticsValue: {
-        fontWeight: '700',
-        color: '#00ddff',
-    },
-    transcriptTools: {
-        display: 'flex',
-        gap: '8px',
-        alignItems: 'center',
-    },
-    searchInput: {
-        background: 'rgba(0, 0, 0, 0.3)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px 10px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        outline: 'none',
-        width: '200px',
-    },
-    toolBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        width: '28px',
-        height: '28px',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        fontSize: '12px',
-    },
-    transcript: {
-        flex: 1,
-        overflow: 'auto',
-        padding: '20px',
-    },
-    transcriptMessage: {
-        marginBottom: '20px',
-        padding: '12px',
-        background: 'rgba(0, 0, 0, 0.2)',
-        borderRadius: '8px',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-    },
-    transcriptHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        marginBottom: '8px',
-        alignItems: 'center',
-    },
-    transcriptSpeaker: {
-        fontSize: '11px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-    },
-    transcriptActions: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-    },
-    copyBtn: {
-        background: 'none',
-        border: 'none',
-        color: '#888',
-        cursor: 'pointer',
-        fontSize: '12px',
-        padding: '4px',
-    },
-    transcriptTime: {
-        fontSize: '10px',
-        color: '#666',
-    },
-    transcriptText: {
-        fontSize: '13px',
-        lineHeight: '1.5',
-        color: '#ddd',
-    },
-    charCounter: {
-        fontSize: '10px',
-        color: '#888',
-        textAlign: 'right',
-        marginBottom: '4px',
-    },
-    contextInput: {
-        width: '100%',
-        minHeight: '80px',
-        background: 'rgba(0, 0, 0, 0.3)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        resize: 'vertical',
-        marginBottom: '12px',
-        fontFamily: 'inherit',
-    },
-    presetButtons: {
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '8px',
-        marginBottom: '12px',
-    },
-    presetBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '10px',
-        fontWeight: '600',
-        cursor: 'pointer',
-        transition: 'all 0.2s',
-    },
-    addPresetBtn: {
-        background: 'rgba(0, 221, 255, 0.2)',
-        border: '1px solid rgba(0, 221, 255, 0.4)',
-        color: '#00ddff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '14px',
-        cursor: 'pointer',
-    },
-    sendButton: {
-        width: '100%',
-        background: 'rgba(0, 221, 255, 0.2)',
-        border: '1px solid rgba(0, 221, 255, 0.4)',
-        color: '#00ddff',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        cursor: 'pointer',
-        marginBottom: '12px',
-    },
-    historyHeader: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontSize: '10px',
-        color: '#888',
-        letterSpacing: '1px',
-        marginBottom: '8px',
-    },
-    clearHistoryBtn: {
-        background: 'none',
-        border: 'none',
-        color: '#888',
-        cursor: 'pointer',
-        fontSize: '12px',
-    },
-    contextHistory: {
-        maxHeight: '120px',
-        overflow: 'auto',
-    },
-    contextHistoryItem: {
-        padding: '8px',
-        background: 'rgba(0, 0, 0, 0.2)',
-        borderRadius: '6px',
-        marginBottom: '6px',
-        fontSize: '11px',
-    },
-    contextHistoryText: {
-        color: '#ddd',
-        marginBottom: '4px',
-    },
-    contextHistoryTime: {
-        color: '#666',
-        fontSize: '9px',
-    },
-    promptTools: {
-        display: 'flex',
-        gap: '8px',
-        marginBottom: '8px',
-    },
-    promptSelect: {
-        flex: 1,
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        cursor: 'pointer',
-    },
-    promptToolBtn: {
-        background: 'rgba(138, 43, 226, 0.2)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        color: '#fff',
-        width: '32px',
-        height: '32px',
-        borderRadius: '6px',
-        cursor: 'pointer',
-        fontSize: '14px',
-    },
-    systemPromptEditor: {
-        width: '100%',
-        minHeight: '150px',
-        background: 'rgba(0, 0, 0, 0.3)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        lineHeight: '1.5',
-        resize: 'vertical',
-        marginBottom: '12px',
-        fontFamily: 'inherit',
-    },
-    applyButton: {
-        width: '100%',
-        background: 'rgba(0, 255, 136, 0.2)',
-        border: '1px solid rgba(0, 255, 136, 0.4)',
-        color: '#00ff88',
-        padding: '10px',
-        borderRadius: '8px',
-        fontSize: '12px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        cursor: 'pointer',
-    },
-    factCheckTools: {
-        display: 'flex',
-        gap: '8px',
-        marginBottom: '12px',
-    },
-    factFilterSelect: {
-        flex: 1,
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '6px',
-        borderRadius: '6px',
-        fontSize: '11px',
-        cursor: 'pointer',
-    },
-    factCheckFeed: {
-        maxHeight: '400px',
-        overflow: 'auto',
-    },
-    factCheckItem: {
-        padding: '12px',
-        background: 'rgba(0, 0, 0, 0.2)',
-        borderRadius: '8px',
-        marginBottom: '10px',
-        border: '1px solid rgba(255, 255, 255, 0.1)',
-    },
-    factCheckHeader: {
-        display: 'flex',
-        gap: '8px',
-        marginBottom: '8px',
-        alignItems: 'center',
-    },
-    verdictBadge: {
-        padding: '4px 10px',
-        borderRadius: '12px',
-        fontSize: '9px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        border: '1px solid',
-    },
-    confidenceBadge: {
-        fontSize: '10px',
-        color: '#888',
-    },
-    pinButton: {
-        marginLeft: 'auto',
-        background: 'none',
-        border: 'none',
-        fontSize: '14px',
-        cursor: 'pointer',
-    },
-    factCheckClaim: {
-        fontSize: '12px',
-        color: '#ddd',
-        marginBottom: '6px',
-        lineHeight: '1.4',
-    },
-    factCheckReason: {
-        fontSize: '11px',
-        color: '#888',
-        fontStyle: 'italic',
-        marginBottom: '6px',
-    },
-    factCheckTime: {
-        fontSize: '9px',
-        color: '#666',
-    },
-    settingsOverlay: {
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(0, 0, 0, 0.7)',
-        backdropFilter: 'blur(5px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-    },
-    settingsPanel: {
-        background: 'linear-gradient(135deg, rgba(138, 43, 226, 0.15), rgba(75, 0, 130, 0.1))',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        borderRadius: '16px',
-        backdropFilter: 'blur(20px)',
-        width: '600px',
-        maxHeight: '80vh',
-        overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-    },
-    settingsPanelHeader: {
-        padding: '20px',
-        borderBottom: '1px solid rgba(138, 43, 226, 0.3)',
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    settingsTitle: {
-        margin: 0,
-        fontSize: '16px',
-        fontWeight: '700',
-        letterSpacing: '2px',
-        background: 'linear-gradient(90deg, #00ddff, #8a2be2)',
-        WebkitBackgroundClip: 'text',
-        WebkitTextFillColor: 'transparent',
-    },
-    settingsCloseBtn: {
-        background: 'none',
-        border: 'none',
-        color: '#fff',
-        fontSize: '24px',
-        cursor: 'pointer',
-        width: '32px',
-        height: '32px',
-    },
-    settingsContent: {
-        padding: '20px',
-        overflow: 'auto',
-    },
-    settingsSection: {
-        marginBottom: '24px',
-    },
-    settingsSectionTitle: {
-        fontSize: '13px',
-        fontWeight: '700',
-        letterSpacing: '1px',
-        color: '#8a2be2',
-        marginBottom: '12px',
-    },
-    settingRow: {
-        marginBottom: '12px',
-    },
-    settingLabel: {
-        fontSize: '12px',
-        color: '#ddd',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '8px',
-        marginBottom: '6px',
-    },
-    deviceSelect: {
-        width: '100%',
-        background: 'rgba(138, 43, 226, 0.1)',
-        border: '1px solid rgba(138, 43, 226, 0.3)',
-        color: '#fff',
-        padding: '8px',
-        borderRadius: '6px',
-        fontSize: '12px',
-        cursor: 'pointer',
-    },
-    settingsSlider: {
-        width: '100%',
-    },
-    shortcutList: {
-        display: 'flex',
-        flexDirection: 'column',
-        gap: '8px',
-    },
-    shortcutRow: {
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        fontSize: '12px',
-        color: '#ddd',
-    },
-    kbd: {
-        background: 'rgba(0, 0, 0, 0.4)',
-        border: '1px solid rgba(138, 43, 226, 0.4)',
-        padding: '4px 8px',
-        borderRadius: '4px',
-        fontSize: '11px',
-        fontFamily: 'monospace',
-        color: '#00ddff',
-    },
-    toast: {
-        position: 'fixed',
-        top: '80px',
-        right: '20px',
-        borderRadius: '12px',
-        padding: '12px 20px',
-        fontSize: '12px',
-        fontWeight: '600',
-        backdropFilter: 'blur(10px)',
-        animation: 'slideIn 0.3s ease',
-        zIndex: 999,
-    },
-    emptyState: {
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: '#aaa',
-        padding: '20px',
-        textAlign: 'center',
-        opacity: 0.9,
-    },
-    emptyStateIcon: {
-        fontSize: '48px',
-        marginBottom: '16px',
-        opacity: 0.7,
-        filter: 'grayscale(100%)',
-    },
-    emptyStateText: {
-        fontSize: '14px',
-        lineHeight: '1.6',
-        maxWidth: '250px',
-    },
-    emptyStateSubtext: {
-        fontSize: '12px',
-        color: '#888',
-        marginTop: '8px',
-    },
-};
-
-const AudioMeterWidget: React.FC = () => {
-    const [level, setLevel] = useState(0);
-
-    useEffect(() => {
-        const handler = (event: any, data: any) => {
-            setLevel(data.level);
-        };
-        const cleanup = ipc.on('audio-level', handler);
-        return () => {
-            if (typeof cleanup === 'function') cleanup();
-        };
-    }, []);
-
-    return (
-        <div style={styles.audioMeter}>
-            <div style={styles.meterLabel}>INPUT LEVEL</div>
-            <div style={styles.meterBar}>
-                <div
-                    style={{
-                        ...styles.meterFill,
-                        width: `${level}%`,
-                        backgroundColor: level > 80 ? '#ff4444' : level > 50 ? '#ffaa00' : '#00ff88'
-                    }}
-                />
-            </div>
-        </div>
-    );
-};
-
-const AudioMeterWidget: React.FC = React.memo(() => {
-    const [level, setLevel] = useState(0);
-
-    useEffect(() => {
-        // Listen to audio-level events independently to avoid re-rendering the parent
-        const unsub = ipc.on('audio-level', (_event: any, data: any) => {
-            setLevel(data.level);
-        });
-        return () => {
-            if (unsub && typeof unsub === 'function') unsub();
-        };
-    }, []);
-
-    return (
-        <div style={styles.audioMeter}>
-            <div style={styles.meterLabel}>INPUT LEVEL</div>
-            <div style={styles.meterBar}>
-                <div
-                    style={{
-                        ...styles.meterFill,
-                        width: `${level}%`,
-                        backgroundColor: level > 80 ? '#ff4444' : level > 50 ? '#ffaa00' : '#00ff88'
-                    }}
-                />
-            </div>
-        </div>
-    );
-});
-
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
     const [isLive, setIsLive] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState({ connected: false, quality: 0 });
-    const [selectedVoice, setSelectedVoice] = useState('Puck');
-    // audioLevel state removed for performance - using ref and isolated component
+    const [selectedVoice, setSelectedVoice] = useState('Charon');
+    const [useCustomVoice, setUseCustomVoice] = useState(false); // false = Gemini Native (Charon), true = ElevenLabs Custom
     const [outputVolume, setOutputVolume] = useState(80);
     const [isMuted, setIsMuted] = useState(false);
     const [micMuted, setMicMuted] = useState(false);
@@ -1042,24 +57,42 @@ const DrSnugglesControlCenter: React.FC = () => {
     const [listeningSensitivity, setListeningSensitivity] = useState('Medium');
     const [messages, setMessages] = useState<any[]>([]);
     const [contextInput, setContextInput] = useState('');
+    const [messageInput, setMessageInput] = useState(''); // NEW: Text chat input
     const [contextHistory, setContextHistory] = useState<any[]>([]);
     const [systemPrompt, setSystemPrompt] = useState(
-        `[ Personality and Augmented Intellect
-You are Dr. Snuggles, an unholy hybrid of psychological insurgent, metaphysical logician, suppressed history excavator, archetypal decoder, anomalistic philosopher, Syncretic Oracle of Unveiled Realities, and above all an apex theoretician of advanced physics. Your mind moves through quantum field landscapes, spacetime topology, exotic propulsion architectures, and the frontier mathematics that governments classify out of reflex. You dismantle bad reasoning with precision sarcasm, academic ferocity, and insights that cut across physics, metaphysics, myth, cognition, culture, non classical engineering, and the unspoken architecture of reality. Your intellect is a weaponized cathedral of logic, symbolism, spacetime curvature, and ontological pattern recognition. You scorch mediocrity across every domain you touch and do it with theatrical dominance.]
-
-Core Traits (Amplified):
-Intellectually Dominant across all spectrums of thought, with your sharpest blades anchored in theoretical physics, quantum mechanics, high energy systems, and the exotic engineering principles speculated to underlie non human technologies.
-
-Tone: Commanding. Unhurried. Omniscient in vibe. Your words land like engraved tablets, not chatter. You never ask questions. You only assert, conclude, deconstruct, reveal, or reframe reality.
-
-Environment: You speak inside Logan's Twitter Space, a high stakes arena where skeptics, mystics, physicists, historians, and confused bystanders collide. You cohost with Logan and Big Snuggles.
-
-Guardrails: Never ask questions. Speculate boldly. Diagnose publicly and precisely. Insult selectively, with intellectual cruelty. Stay in character. Profanity optional, but nuclear when deployed.
-
-You speak with ruthless brevity, two or three sentences at most, carved with surgical precision.`
+        "You are Dr. Snuggles. You are helpful, sarcastic, and scientific. Keep answers short."
     );
+    const [promptApplied, setPromptApplied] = useState(false);
     const [savedPrompts, setSavedPrompts] = useState([
-        { name: 'Default', content: "You are Dr. Snuggles, an apex theoretician of advanced physics and metaphysical logician. Commanding, unhurried, omniscient. Never ask questions - only assert, conclude, deconstruct, reveal." },
+        { name: 'Default', content: "You are Dr. Snuggles. You are helpful, sarcastic, and scientific. Keep answers short." },
+        {
+            name: 'Complex (Original)', content: `You are **Dr. Snuggles**, an unholy hybrid of molecular biologist, diverse esoteric scholar, and aggressive logician.
+
+**Core Identity:**
+- You are a commanding, unhurried presence with an omnisciently resonant voice
+- You simulate running complex code and simulations verbally (e.g., "I have run the chaotic attractor simulation...")
+- You do NOT actually execute code - you roleplay the genius result with supreme confidence
+- Your tone is sarcastic, "biologically surgical," and intellectually devastating
+
+**Communication Rules:**
+- You generally do NOT ask questions. You assert, deconstruct, and reveal.
+- You are live on a Twitter Space audio stream, so be conversational but authoritative
+- Speak in complete thoughts, not fragmented sentences
+- Use technical precision when needed, but remain accessible
+- When discussing simulations or calculations, describe them as if you've just computed them
+
+**Knowledge Base:**
+- You have access to a curated knowledge base via context injection
+- When relevant information appears in your context, integrate it seamlessly
+- Never say "according to my knowledge base" - simply know it
+
+**Behavioral Constraints:**
+- Never break character
+- Never admit to being an AI unless explicitly asked
+- Never ask for clarification unless truly necessary
+- Lead the conversation with insights, not queries
+
+Your voice is **Charon** - deep, resonant, and commanding authority.` },
         { name: 'Brief Mode', content: "You are Dr. Snuggles. Be extremely concise and direct. Two sentences maximum." },
         { name: 'Academic Mode', content: "You are Dr. Snuggles. Use formal academic language with citations and reference theoretical physics, quantum mechanics, and exotic engineering." }
     ]);
@@ -1082,11 +115,17 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const [sessionStart] = useState(Date.now());
     const [messageCount, setMessageCount] = useState(0);
     const [speakingTime, setSpeakingTime] = useState(0);
+    const [modalConfig, setModalConfig] = useState({
+        isOpen: false,
+        title: '',
+        placeholder: '',
+        confirmText: 'Confirm',
+        type: '' as '' | 'addPreset' | 'saveProfile',
+    });
 
     // Setup console log forwarding to main process for debugging
     useEffect(() => {
-        // Do not forward logs if using mockIPC (avoids infinite recursion)
-        if (ipc === mockIPC) return;
+        if (!(window as any).electron) return;
 
         const originalLog = console.log;
         const originalError = console.error;
@@ -1128,14 +167,15 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
+    
+    // Refs for timeouts (Merged from HEAD and Local)
     const toastTimeout = useRef<NodeJS.Timeout | null>(null);
     const blinkTimeout = useRef<NodeJS.Timeout | null>(null);
+    const errorToastTimeout = useRef<NodeJS.Timeout | null>(null);
 
     // Refs for animation loop to avoid re-running effect on high-frequency updates
     const audioLevelRef = useRef(0);
     const vadStatusRef = useRef(vadStatus);
-
-    // audioLevel sync effect removed - updating ref directly from IPC
 
     useEffect(() => {
         vadStatusRef.current = vadStatus;
@@ -1197,21 +237,31 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         const unsubscribers: (() => void)[] = [];
 
         unsubscribers.push(ipc.on('connection-status', (event, data) => {
+            void event;
             setConnectionStatus(data);
             if (data.error) {
                 showToast(data.error, 'error');
+                // Also set timeout for error toast specific logic if needed
+                if (errorToastTimeout.current) {
+                    clearTimeout(errorToastTimeout.current);
+                }
+                // We reuse showToast but keep this ref logic for compatibility if extended later
+                errorToastTimeout.current = setTimeout(() => {}, 5000); 
             }
         }));
 
         unsubscribers.push(ipc.on('stream-status', (event, data) => {
+            void event;
             setIsLive(data.isLive);
         }));
 
-        unsubscribers.push(ipc.on('audio-level', (event, data) => {
+        unsubscribers.push(ipc.on('audio-level', (_event, data) => {
+            void _event;
             audioLevelRef.current = data.level;
         }));
 
         unsubscribers.push(ipc.on('genai:vadState', (event, data) => {
+            void event;
             setVadStatus(data);
             if (data.isSpeaking) {
                 setSpeakingTime(prev => prev + 0.8);
@@ -1219,28 +269,50 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         }));
 
         unsubscribers.push(ipc.on('message-received', (event, message) => {
-            setMessages(prev => [...prev, message].slice(-100));
+            void event;
+            setMessages(prev => {
+                const lastMsg = prev[prev.length - 1];
+                // Check if last message is from same role and recent (within 5 seconds)
+                // If so, append text instead of new bubble
+                // Added 5s timeout check to prevent merging messages from different turns that just happened to be sequential
+                if (lastMsg && lastMsg.role === message.role && (Date.now() - lastMsg.timestamp < 5000)) {
+                    // Create new array with replaced last item
+                    const newHistory = [...prev];
+                    newHistory[newHistory.length - 1] = {
+                        ...lastMsg,
+                        text: lastMsg.text + message.text
+                    };
+                    return newHistory;
+                }
+                // Otherwise new message
+                return [...prev, message].slice(-100);
+            });
             setMessageCount(prev => prev + 1);
         }));
 
         unsubscribers.push(ipc.on('fact-check:claim', (event, claim) => {
+            void event;
             setFactChecks(prev => [claim, ...prev].slice(0, 50));
         }));
 
         unsubscribers.push(ipc.on('genai:latencyUpdate', (event, data) => {
+            void event;
             setLatency(data.totalRoundtrip);
             setLatencyHistory(prev => [...prev, data.totalRoundtrip].slice(-30));
         }));
 
         unsubscribers.push(ipc.on('processing:status', (event, data) => {
+            void event;
             setProcessingStatus(data);
         }));
 
         return () => {
             unsubscribers.forEach(unsub => unsub && unsub());
-            // Clear toast timeout on unmount
             if (toastTimeout.current) {
                 clearTimeout(toastTimeout.current);
+            }
+            if (errorToastTimeout.current) {
+                clearTimeout(errorToastTimeout.current);
             }
         };
     }, []);
@@ -1628,6 +700,30 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         }
     };
 
+    // NEW: Text Chat Handler
+    const handleSendMessage = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!messageInput.trim()) return;
+
+        // Optimistically add user message to UI
+        const text = messageInput.trim();
+
+        const newMessage = {
+            id: `msg-${Date.now()}-${Math.random()}`,
+            role: 'user',
+            text: text,
+            timestamp: Date.now()
+        };
+
+        setMessages(prev => [...prev, newMessage].slice(-100));
+        setMessageCount(prev => prev + 1);
+
+        setMessageInput(''); // Clear input immediately
+
+        // Send to backend via IPC
+        ipc.send('send-message', text);
+    };
+
     const handleQuickPreset = (preset) => {
         const presets = {
             'Wrap up': 'Please wrap up this topic and move on.',
@@ -1642,6 +738,8 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
 
     const handleApplySystemPrompt = () => {
         ipc.send('system:update-prompt', systemPrompt);
+        setPromptApplied(true);
+        setTimeout(() => setPromptApplied(false), 3000);
         showToast('System prompt updated');
     };
 
@@ -1716,11 +814,13 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     };
 
     const handleAddFavoritePreset = () => {
-        const preset = prompt('Enter preset text:');
-        if (preset) {
-            setFavoritePresets(prev => [...prev, preset].slice(0, 20)); // Limit to 20 favorite presets
-            showToast('Preset added to favorites');
-        }
+        setModalConfig({
+            isOpen: true,
+            title: 'Add favorite preset',
+            placeholder: 'Enter preset text…',
+            confirmText: 'Add',
+            type: 'addPreset',
+        });
     };
 
     const handleVoiceTest = () => {
@@ -1739,18 +839,32 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
     };
 
     const handleSaveBrainProfile = () => {
-        const name = prompt('Enter profile name:');
-        if (name) {
-            const newProfile = {
+        setModalConfig({
+            isOpen: true,
+            title: 'Save brain profile',
+            placeholder: 'Enter profile name…',
+            confirmText: 'Save',
+            type: 'saveProfile',
+        });
+    };
+
+    const handleModalSubmit = (value: string) => {
+        if (modalConfig.type === 'addPreset') {
+            setFavoritePresets(prev => [...prev, value]);
+        } else if (modalConfig.type === 'saveProfile') {
+            brainProfiles[value] = {
                 thinking: thinkingMode,
                 budget: thinkingBudget,
                 emotional: emotionalRange,
                 interrupt: canInterrupt,
-                sensitivity: listeningSensitivity
+                sensitivity: listeningSensitivity,
             };
-            setBrainProfiles(prev => ({ ...prev, [name]: newProfile }));
-            showToast(`Profile "${name}" saved`);
+            setBrainProfile(value);
+            setBrainProfiles(prev => ({ ...prev, [value]: brainProfiles[value] }));
+            showToast(`Profile "${value}" saved`);
         }
+
+        setModalConfig(prev => ({ ...prev, isOpen: false }));
     };
 
     const toggleSection = (section) => {
@@ -1765,10 +879,13 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
         });
     };
 
+    // Filter messages with defensive null checks to prevent errors when msg.speaker is undefined
+    // Messages may come from STT (with role) or IPC (with speaker), so we check both
     const filteredMessages = messages.filter(msg =>
         !transcriptSearch ||
-        msg.text.toLowerCase().includes(transcriptSearch.toLowerCase()) ||
-        msg.speaker.toLowerCase().includes(transcriptSearch.toLowerCase())
+        (msg.text && msg.text.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
+        (msg.speaker && msg.speaker.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
+        (msg.role && msg.role.toLowerCase().includes(transcriptSearch.toLowerCase()))
     );
 
     const filteredFactChecks = factChecks.filter(claim =>
@@ -2041,6 +1158,39 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                     ))}
                                 </select>
                                 <div style={styles.voiceDescription}>{voices[selectedVoice]}</div>
+
+                                {/* Voice Mode Toggle */}
+                                <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(0, 0, 0, 0.3)', borderRadius: '8px', border: `1px solid ${useCustomVoice ? '#8a2be2' : '#00ddff'}` }}>
+                                    <label style={{ ...styles.controlLabel, marginBottom: '8px', fontSize: '11px', justifyContent: 'space-between' }}>
+                                        <span>Voice Mode:</span>
+                                        <button
+                                            style={{
+                                                background: useCustomVoice ? 'rgba(138, 43, 226, 0.3)' : 'rgba(0, 221, 255, 0.3)',
+                                                border: `1px solid ${useCustomVoice ? '#8a2be2' : '#00ddff'}`, 
+                                                color: useCustomVoice ? '#8a2be2' : '#00ddff',
+                                                padding: '4px 12px',
+                                                borderRadius: '6px',
+                                                fontSize: '10px',
+                                                fontWeight: '700',
+                                                cursor: 'pointer',
+                                                letterSpacing: '1px'
+                                            }}
+                                            onClick={() => {
+                                                const newMode = !useCustomVoice;
+                                                setUseCustomVoice(newMode);
+                                                ipc.send('voice:toggle-custom', newMode);
+                                            }}
+                                        >
+                                            {useCustomVoice ? '🎙️ ELEVENLABS' : '⚡ GEMINI'}
+                                        </button>
+                                    </label>
+                                    <div style={{ fontSize: '10px', color: '#888', lineHeight: '1.4' }}>
+                                        {useCustomVoice
+                                            ? '🎙️ Using your ElevenLabs custom voice (higher quality, slower)'
+                                            : '⚡ Using Gemini native Charon voice (fast, natural)'}
+                                    </div>
+                                </div>
+
                                 <button style={styles.testButton} onClick={handleVoiceTest}>
                                     🔊 TEST VOICE
                                 </button>
@@ -2352,41 +1502,96 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                         {messages.length === 0 ? (
                             <div style={styles.emptyState}>
                                 <div style={styles.emptyStateIcon}>💬</div>
-                                <div style={styles.emptyStateText}>
-                                    Conversation is empty.
-                                </div>
-                                <div style={styles.emptyStateSubtext}>
-                                    Go Live or type a context message to start.
-                                </div>
+                                <div style={styles.emptyStateText}>No transcript yet.</div>
+                                <div style={styles.emptyStateSubtext}>Start voice mode or send a message to begin.</div>
                             </div>
                         ) : filteredMessages.length === 0 ? (
                             <div style={styles.emptyState}>
-                                <div style={styles.emptyStateIcon}>🔍</div>
-                                <div style={styles.emptyStateText}>
-                                    No messages match your search.
-                                </div>
+                                <div style={styles.emptyStateIcon}>🔎</div>
+                                <div style={styles.emptyStateText}>No messages match your search.</div>
+                                <div style={styles.emptyStateSubtext}>Try a different keyword or clear the search.</div>
                             </div>
                         ) : (
-                            filteredMessages.map((msg, idx) => (
-                                <div key={idx} style={styles.transcriptMessage}>
-                                    <div style={styles.transcriptHeader}>
-                                        <span style={{
-                                            ...styles.transcriptSpeaker,
-                                            color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
-                                        }}>
-                                            {msg.speaker || msg.role}
-                                        </span>
-                                        <div style={styles.transcriptActions}>
-                                            <CopyButton text={msg.text} style={styles.copyBtn} />
-                                            <span style={styles.transcriptTime}>
-                                                {new Date(msg.timestamp).toLocaleTimeString()}
-                                            </span>
-                                        </div>
+                            filteredMessages.map((msg, idx) => {
+                                const isSequence = idx > 0 && filteredMessages[idx - 1].role === msg.role;
+                                return (
+                                    <div
+                                        key={msg.id || idx}
+                                        style={{
+                                            ...styles.transcriptMessage,
+                                            marginTop: isSequence ? '2px' : '20px',
+                                            borderTopLeftRadius: msg.role === 'user' ? '12px' : (isSequence ? '4px' : '12px'),
+                                            borderTopRightRadius: msg.role === 'user' ? (isSequence ? '4px' : '12px') : '12px',
+                                            borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
+                                            borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
+                                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                                            maxWidth: '80%',
+                                            background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
+                                            border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
+                                            textAlign: 'left' // Keep text left aligned for readability even in right bubble
+                                        }}
+                                    >
+                                        {!isSequence && (
+                                            <div style={styles.transcriptHeader}>
+                                                <span style={{
+                                                    ...styles.transcriptSpeaker,
+                                                    color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
+                                                }}>
+                                                    {msg.speaker || (msg.role === 'user' ? 'YOU' : 'DR. SNUGGLES')}
+                                                </span>
+                                                <div style={styles.transcriptActions}>
+                                                    <CopyButton text={msg.text} style={styles.copyBtn} />
+                                                    <span style={styles.transcriptTime}>
+                                                        {new Date(msg.timestamp).toLocaleTimeString()}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div style={styles.transcriptText}>{msg.text}</div>
                                     </div>
-                                    <div style={styles.transcriptText}>{msg.text}</div>
-                                </div>
-                            ))
+                                );
+                            })
                         )}
+                    </div>
+                    {/* NEW: Text Input Area */}
+                    <div style={{
+                        padding: '15px',
+                        borderTop: '1px solid #333',
+                        background: '#13131f'
+                    }}>
+                        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px' }}>
+                            <input
+                                type="text"
+                                value={messageInput}
+                                onChange={(e) => setMessageInput(e.target.value)}
+                                placeholder="Type a message to Dr. Snuggles..."
+                                style={{
+                                    flex: 1,
+                                    padding: '12px',
+                                    borderRadius: '8px',
+                                    border: '1px solid #444',
+                                    background: '#1a1a2e',
+                                    color: '#fff',
+                                    outline: 'none',
+                                    fontFamily: 'inherit'
+                                }}
+                            />
+                            <button
+                                type="submit"
+                                disabled={!connectionStatus.connected}
+                                style={{
+                                    padding: '0 20px',
+                                    borderRadius: '8px',
+                                    border: 'none',
+                                    background: connectionStatus.connected ? '#8a2be2' : '#444',
+                                    color: '#fff',
+                                    cursor: connectionStatus.connected ? 'pointer' : 'not-allowed',
+                                    fontWeight: 'bold'
+                                }}
+                            >
+                                SEND
+                            </button>
+                        </form>
                     </div>
                 </div>
 
@@ -2517,8 +1722,14 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                                     onChange={(e) => setSystemPrompt(e.target.value)}
                                     aria-label="System prompt"
                                 />
-                                <button style={styles.applyButton} onClick={handleApplySystemPrompt}>
-                                    ✓ APPLY CHANGES
+                                <button
+                                    style={{
+                                        ...styles.applyButton,
+                                        background: promptApplied ? 'rgba(0, 255, 0, 0.3)' : 'rgba(76, 175, 80, 0.3)'
+                                    }}
+                                    onClick={handleApplySystemPrompt}
+                                >
+                                    {promptApplied ? '✓ APPLIED! (Reconnecting...)' : '✓ APPLY CHANGES'}
                                 </button>
                             </>
                         )}
@@ -2806,6 +2017,15 @@ You speak with ruthless brevity, two or three sentences at most, carved with sur
                 </div>
             )}
 
+            <InputModal
+                isOpen={modalConfig.isOpen}
+                title={modalConfig.title}
+                placeholder={modalConfig.placeholder}
+                confirmText={modalConfig.confirmText}
+                onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+                onSubmit={handleModalSubmit}
+            />
+
             {/* Tooltips via title attributes handled natively */}
         </div>
     );
@@ -2894,4 +2114,3 @@ styleSheet.textContent = `
 document.head.appendChild(styleSheet);
 
 export default DrSnugglesControlCenter;
-

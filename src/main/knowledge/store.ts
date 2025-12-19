@@ -135,11 +135,19 @@ export class KnowledgeStore {
         addedAt: doc.metadata.addedAt
       }));
 
-      await insertMultiple(this.db, oramaDocs);
-      console.log(`[KnowledgeStore] Indexed ${oramaDocs.length} documents`);
+      try {
+        await insertMultiple(this.db, oramaDocs);
+        console.log(`[KnowledgeStore] Indexed ${oramaDocs.length} documents`);
 
-      // Save index to disk
-      await this.saveIndex();
+        // Save index to disk
+        await this.saveIndex();
+      } catch (error: any) {
+        if (error.code === 'DOCUMENT_ALREADY_EXISTS') {
+          console.log('[KnowledgeStore] Documents already indexed (restored from saved index)');
+        } else {
+          throw error;
+        }
+      }
     }
   }
 

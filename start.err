@@ -1,0 +1,57 @@
+[85336:1201/002245.678:ERROR:network_change_notifier_win.cc(188)] WSALookupServiceBegin failed with: 10108
+[85336:1201/002245.711:ERROR:core_audio_util_win.cc(353)] Failed to create Core Audio device enumerator on thread with ID 85592
+[85336:1201/002245.858:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002245.859:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002245.859:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002245.870:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002245.870:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002245.871:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002245.871:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002245.871:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002245.871:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+(node:85336) electron: Failed to load URL: http://localhost:5173/ with error: ERR_FAILED
+(Use `electron --trace-warnings ...` to show where the warning was created)
+(node:85336) electron: Failed to load URL: http://localhost:5173/ with error: ERR_FAILED
+(node:85336) electron: Failed to load URL: http://localhost:5173/ with error: ERR_FAILED
+[85336:1201/002252.086:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002252.086:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002252.086:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002252.086:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002252.087:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002252.088:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002252.088:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002252.088:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002252.088:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+(node:85336) electron: Failed to load URL: http://localhost:5173/ with error: ERR_FAILED
+[85336:1201/002254.127:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002254.128:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002254.128:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002254.128:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002254.128:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002254.129:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002254.129:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002254.129:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002254.129:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+(node:85336) electron: Failed to load URL: http://localhost:5173/ with error: ERR_FAILED
+[85336:1201/002256.165:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002256.165:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002256.165:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002256.165:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002256.166:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002256.166:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002256.166:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002256.166:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002256.166:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+(node:85336) electron: Failed to load URL: http://localhost:5173/ with error: ERR_FAILED
+[Main] ❌ Failed to load Vite dev server: ERR_FAILED (-2) loading 'http://localhost:5173/'
+[85336:1201/002256.200:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002256.201:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002256.201:ERROR:cache_util_win.cc(20)] Unable to move the cache: Access is denied. (0x5)
+[85336:1201/002256.202:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002256.202:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002256.202:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002256.203:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[85336:1201/002256.203:ERROR:disk_cache.cc(208)] Unable to create cache
+[85336:1201/002256.203:ERROR:gpu_disk_cache.cc(713)] Gpu Cache Creation failed: -2
+[Ingestor] Directory not found: C:\Users\Logan\SnugglesAiCohost\aiagentlclonenew-main (4)\aiagentlclonenew-main\Snuggles_Audio_Node\dist\knowledge
+[KnowledgeStore] No documents found

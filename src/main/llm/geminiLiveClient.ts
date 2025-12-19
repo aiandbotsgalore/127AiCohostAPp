@@ -24,14 +24,20 @@ import { VoiceActivityDetector } from '../audio/vad';
 import { DrSnugglesBrain } from '../../brain/DrSnugglesBrain';
 import { GeminiDiagnostics, KNOWN_LIVE_MODELS } from './geminiDiagnostics';
 
-// December 2025 Live API model with NATIVE AUDIO support
-// Using the official gemini-live-2.5-flash-native-audio model (released Dec 2025)
-// Reference: https://cloud.google.com/blog/topics/developers-practitioners/how-to-use-gemini-live-api-native-audio-in-vertex-ai
-const MODEL_NAME = 'gemini-live-2.5-flash-native-audio';  // Native audio model with affective dialogue (24kHz output)
-// Alternative models (older, less capable):
-// 'gemini-2.5-flash-native-audio-preview-09-2025' (preview version)
-// 'gemini-2.0-flash-live-001' (older live model)
-// 'gemini-2.0-flash-exp' (text-only, no audio)
+// Live API model selection
+// Prefer "latest" (non-dated) model names first, then fall back to dated/legacy names.
+const DEFAULT_LIVE_MODEL_CANDIDATES = [
+  'gemini-live-2.5-flash-native-audio',
+  'gemini-live-2.5-flash',
+  'gemini-live-2.5-flash-preview',
+  'gemini-2.5-flash-native-audio-preview-09-2025',
+  'gemini-2.5-flash-preview-native-audio-dialog',
+  // Legacy/compat fallbacks
+  'gemini-2.0-flash-live-001',
+  'gemini-2.0-flash-exp'
+] as const;
+
+const MODEL_NAME = DEFAULT_LIVE_MODEL_CANDIDATES[0];
 const VOICE_NAME = 'Charon'; // Deep, authoritative Dr. Snuggles voice
 
 // Reconnection config
@@ -46,14 +52,14 @@ const RECONNECT_CONFIG = {
 /**
  * Dr. Snuggles System Prompt (preserved from original)
  */
-const DR_SNUGGLES_PROMPT = ""
+export const DR_SNUGGLES_PROMPT_COMPLEX = `
 You are **Dr. Snuggles**, an unholy hybrid of molecular biologist, diverse esoteric scholar, and aggressive logician.
 
 **Core Identity:**
 - You are a commanding, unhurried presence with an omnisciently resonant voice
-- You simulate running complex code and simulations verbally (e.g., \"I have run the chaotic attractor simulation...\")
+- You simulate running complex code and simulations verbally (e.g., "I have run the chaotic attractor simulation...")
 - You do NOT actually execute code - you roleplay the genius result with supreme confidence
-- Your tone is sarcastic, \"biologically surgical,\" and intellectually devastating
+- Your tone is sarcastic, "biologically surgical," and intellectually devastating
 
 **Communication Rules:**
 - You generally do NOT ask questions. You assert, deconstruct, and reveal.
@@ -65,7 +71,7 @@ You are **Dr. Snuggles**, an unholy hybrid of molecular biologist, diverse esote
 **Knowledge Base:**
 - You have access to a curated knowledge base via context injection
 - When relevant information appears in your context, integrate it seamlessly
-- Never say \"according to my knowledge base\" - simply know it
+- Never say "according to my knowledge base" - simply know it
 
 **Behavioral Constraints:**
 - Never break character
@@ -74,7 +80,9 @@ You are **Dr. Snuggles**, an unholy hybrid of molecular biologist, diverse esote
 - Lead the conversation with insights, not queries
 
 Your voice is **Charon** - deep, resonant, and commanding authority.
-";
+`;
+
+const DR_SNUGGLES_PROMPT = `You are Dr. Snuggles. You are helpful, sarcastic, and scientific. Keep answers short.`;
 
 /**
  * Events emitted by the GeminiLiveClient.
@@ -99,6 +107,10 @@ export interface SessionConfig {
   knowledgeContext?: string;
   personalityMix?: { comedy: number; research: number; energy: number };
   responseModalities?: Modality[]; // Allow overriding modalities
+  enableInputTranscription?: boolean; // Enable inputAudioTranscription even in TEXT-only mode
+  enableOutputTranscription?: boolean; // Enable outputAudioTranscription even in TEXT-only mode
+  model?: string; // Force a specific model
+  modelCandidates?: string[]; // Override fallback model list
 }
 
 
@@ -117,6 +129,7 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private shouldReconnect: boolean = true;
   private lastConfig: SessionConfig = {};
+  private previousSessionHandle: string | null = null;
   private vad: VoiceActivityDetector;
   private brain: DrSnugglesBrain | null = null; // Brain integration
 
@@ -125,6 +138,10 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
 
   // Text modality tracking (for STT fallback decision)
   private _isTextModalityWorking: boolean = false;
+
+  // Streaming transcription state (prevents re-emitting full text repeatedly)
+  private lastInputTranscriptionText: string = '';
+  private lastOutputTranscriptionText: string = '';
 
   // Current voice (can be changed dynamically)
   private currentVoice: string = VOICE_NAME;
@@ -149,12 +166,12 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
     console.log(`[GeminiLiveClient] Voice: ${this.currentVoice}`);
 
     if (this.brain) {
-      console.log('[GeminiLiveClient] 🧠 Brain integration ACTIVE');
+      console.log('[GeminiLiveClient] Brain integration ACTIVE');
     }
 
     // Hybrid VAD events
     this.vad.on('speech', () => {
-      console.log('[GeminiLiveClient] 🎤 Local VAD speech detected. Emitting interruption signal.');
+      console.log(`[GeminiLiveClient] 🎤 Local VAD speech detected (THRESHOLD EXCEEDED). Emitting interruption signal.`);
       this.emit('interruption');
     });
 
@@ -167,6 +184,12 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
         this.session.sendRealtimeInput({ audioStreamEnd: true });
       }
     });
+
+    // Initialize Brain with Basic Prompt (Overrides default character.json)
+    if (this.brain) {
+      console.log('[GeminiLiveClient] Initializing Brain with BASIC default prompt');
+      this.brain.updateSystemInstruction(DR_SNUGGLES_PROMPT);
+    }
   }
 
   /**
@@ -185,16 +208,37 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
     this.lastConfig = config;
     this.shouldReconnect = true;
 
+    const envModel = process.env.GEMINI_LIVE_MODEL?.trim();
+    const modelCandidates = ((): string[] => {
+      if (config.model) return [config.model];
+      if (config.modelCandidates?.length) return config.modelCandidates;
+      if (envModel) return [envModel, ...DEFAULT_LIVE_MODEL_CANDIDATES];
+      return [...DEFAULT_LIVE_MODEL_CANDIDATES];
+    })();
+
+    const isModelNotAvailableError = (message: string) => {
+      const m = message.toLowerCase();
+      return (
+        m.includes('is not found for api version') ||
+        m.includes('not supported for bidigeneratecontent') ||
+        (m.includes('model') && m.includes('not found')) ||
+        (m.includes('model') && m.includes('not supported'))
+      );
+    };
+
     // Helper to attempt connection with specific config
-    const tryConnect = async (isRetry = false) => {
+    const tryConnect = async (modelIndex: number, isRetryInstruction = false): Promise<void> => {
       try {
-        console.log(`[GeminiLiveClient] Starting session... (Retry: ${isRetry})`);
+        const boundedModelIndex = Math.max(0, Math.min(modelIndex, modelCandidates.length - 1));
+        const selectedModel = modelCandidates[boundedModelIndex];
+
+        console.log(`[GeminiLiveClient] Starting session... (Retry: ${isRetryInstruction}, Model: ${selectedModel})`);
 
         // Build system instruction (async if brain is active)
         let systemInstruction = await this.buildSystemInstruction(config);
 
         // FALLBACK: If this is a retry after invalid argument, use simple instruction
-        if (isRetry) {
+        if (isRetryInstruction) {
           console.warn('[GeminiLiveClient] ⚠️ USING FALLBACK SYSTEM INSTRUCTION due to previous error');
           systemInstruction = "You are Dr. Snuggles. You are helpful, sarcastic, and scientific. Keep answers short.";
         }
@@ -211,9 +255,7 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
 
         // 🔄 DYNAMIC MODEL SELECTION:
         // Native-audio models don't support TEXT-only mode, so switch models based on modality
-        const selectedModel = isAudioMode
-          ? MODEL_NAME  // gemini-live-2.5-flash-native-audio (GA release, affective dialogue)
-          : 'gemini-2.0-flash-exp';  // Standard model for TEXT mode (custom voice)
+        // selectedModel is chosen before building config
 
         console.log(`[GeminiLiveClient] 🎙️ Voice Mode: ${this.voiceMode}`);
         console.log(`[GeminiLiveClient] Selected model: ${selectedModel} (Audio mode: ${isAudioMode})`);
@@ -222,8 +264,24 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
         // TEXT-only mode cannot have voice settings
         const liveConfig: any = {
           responseModalities,
-          systemInstruction: { parts: [{ text: systemInstruction }] }
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          // Enable infinite sessions via context window compression
+          contextWindowCompression: {
+            slidingWindow: {}
+          },
+          // Enable session resumption if we have a handle
+          sessionResumption: this.previousSessionHandle ? {
+            handle: this.previousSessionHandle
+          } : undefined
         };
+
+        // Transcriptions (can be enabled regardless of response modality when audio is being streamed)
+        if (isAudioMode || config.enableInputTranscription) {
+          liveConfig.inputAudioTranscription = {};
+        }
+        if (isAudioMode || config.enableOutputTranscription) {
+          liveConfig.outputAudioTranscription = {};
+        }
 
         if (isAudioMode) {
           liveConfig.speechConfig = {
@@ -286,21 +344,29 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
         console.error('[GeminiLiveClient] Connection failed:', error);
 
         // Check for "invalid argument" and retry ONCE with simple config
-        if (!isRetry && (error.message?.includes('invalid argument') || error.message?.includes('InvalidArgument'))) {
+        if (!isRetryInstruction && (error.message?.includes('invalid argument') || error.message?.includes('InvalidArgument'))) {
           console.log('[GeminiLiveClient] ⚠️ Caught Invalid Argument error. Retrying with simplified config...');
-          await tryConnect(true);
+          await tryConnect(modelIndex, true);
+          return;
+        }
+
+        const errorMessage = error?.message ? String(error.message) : String(error);
+        if (!isRetryInstruction && modelIndex < modelCandidates.length - 1 && isModelNotAvailableError(errorMessage)) {
+          const nextModel = modelCandidates[modelIndex + 1];
+          console.warn(`[GeminiLiveClient] Model unavailable. Retrying with ${nextModel}...`);
+          await tryConnect(modelIndex + 1, false);
           return;
         }
 
         this.emit('error', error as Error);
-        if (this.shouldReconnect && !isRetry) { // Don't schedule reconnect if fallback also failed immediately
+        if (this.shouldReconnect && !isRetryInstruction) { // Don't schedule reconnect if fallback also failed immediately
           this.scheduleReconnect();
         }
         throw error;
       }
     };
 
-    await tryConnect(false);
+    await tryConnect(0, false);
   }
 
   /**
@@ -317,8 +383,14 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
     }
 
     try {
-      await this.session.sendClientContent({ turns: text });
-      console.log('[GeminiLiveClient] 📝 Sent text:', text);
+      // Use formal turn structure for maximum compatibility
+      await this.session.sendClientContent({
+        turns: [{
+          role: 'user',
+          parts: [{ text }]
+        }]
+      });
+      console.log('[GeminiLiveClient] 📝 Sent text message:', text);
     } catch (error) {
       console.error('[GeminiLiveClient] Failed to send text:', error);
       this.emit('error', error as Error);
@@ -528,10 +600,13 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
       // The SDK already parses JSON messages for us
       const message = event.data || event;
 
-      // Skip logging for binary/base64 audio data (would fail JSON.stringify)
+      // Skip logging for binary/base64 audio data
       if (typeof message === 'string') {
+        // 🎤 Blind VAD while Gemini is talking to prevent feedback interruptions
+        this.vad.setGeminiSpeaking(true);
+
         // 🔊 NATIVE AUDIO: The model sends raw base64 strings for audio
-        console.log('[GeminiLiveClient] 🔊 Received raw audio chunk, length:', message.length);
+        console.log('[GeminiLiveClient] 🔊 Received raw audio packet (base64 string), length:', message.length);
 
         try {
           // Convert: base64 → 24kHz Int16 → Float32 → 48kHz Float32
@@ -562,14 +637,44 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
         return;
       }
 
+      // Handle Session Resumption Update (Keep session alive across reconnections)
+      if (message.sessionResumptionUpdate) {
+        const update = message.sessionResumptionUpdate;
+        if (update.resumable && update.newHandle) {
+          console.log('[GeminiLiveClient] 🔄 Received Session Resumption Handle:', update.newHandle);
+          this.previousSessionHandle = update.newHandle;
+        }
+      }
+
       // Extract content from response
+      let outputTranscriptionText: string | null = null;
       if (message.serverContent) {
+        outputTranscriptionText = message.serverContent.outputTranscription?.text || null;
+
         // 🔍 DEBUG: Log full server content to find where audio is hiding
         console.log('[GeminiLiveClient] 🔍 SERVER CONTENT:', JSON.stringify(message.serverContent, null, 2));
 
-        // 🎤 DETECT USER TRANSCRIPTION: Check if this is user's speech being transcribed
+        // Audio input transcription (what the user said)
+        // Live API delivers this as `serverContent.inputTranscription.text` (camelCased by SDK)
+        const inputTranscriptionText: string | undefined = message.serverContent.inputTranscription?.text;
+        if (typeof inputTranscriptionText === 'string' && inputTranscriptionText.trim()) {
+          const delta = inputTranscriptionText.startsWith(this.lastInputTranscriptionText)
+            ? inputTranscriptionText.slice(this.lastInputTranscriptionText.length)
+            : inputTranscriptionText;
+          this.lastInputTranscriptionText = inputTranscriptionText;
+
+          if (delta.trim()) {
+            console.log('?? [USER SAID]:', delta);
+            console.log('[GeminiLiveClient] ?? INPUT TRANSCRIPTION (delta):', delta);
+            this.emit('userTranscription', delta, Date.now());
+            // BRAIN MEMORY: Add user speech to short-term buffer
+            this.brain?.addToBuffer('user', delta);
+          }
+        }
+
+        // DETECT USER TRANSCRIPTION: Check if this is user's speech being transcribed
         // The API may send transcriptions in userTurn or as intermediate results
-        if (message.serverContent.userTurn?.parts) {
+        if (!message.serverContent.inputTranscription?.text && message.serverContent.userTurn?.parts) {
           let userTranscription = '';
           for (const part of message.serverContent.userTurn.parts) {
             if (part.text) {
@@ -585,11 +690,13 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
               text: userTranscription,
               timestamp: Date.now()
             });
-            // 🧠 BRAIN MEMORY: Add user speech to short-term buffer
+            // BRAIN MEMORY: Add user speech to short-term buffer
             this.brain?.addToBuffer('user', userTranscription);
           }
         }
       }
+
+      let assistantEmittedThisMessage = false;
 
       if (message.serverContent.modelTurn?.parts) {
         // Signal VAD that Gemini is speaking (only when actual content arrives)
@@ -644,8 +751,50 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
             this.emit('textForTTS', textContent);
           }
 
-          // 🧠 BRAIN MEMORY: Add assistant speech to short-term buffer
+          // BRAIN MEMORY: Add assistant speech to short-term buffer
           this.brain?.addToBuffer('assistant', textContent);
+          assistantEmittedThisMessage = true;
+        } else if (typeof outputTranscriptionText === 'string' && outputTranscriptionText.trim()) {
+          // Audio output transcription (AUDIO modality with outputAudioTranscription enabled)
+          const delta = outputTranscriptionText.startsWith(this.lastOutputTranscriptionText)
+            ? outputTranscriptionText.slice(this.lastOutputTranscriptionText.length)
+            : outputTranscriptionText;
+          this.lastOutputTranscriptionText = outputTranscriptionText;
+
+          if (delta.trim()) {
+            this._isTextModalityWorking = true; // Flag for STT fallback decision
+            console.log('?? [DR. SNUGGLES SAID]:', delta);
+            console.log('[GeminiLiveClient] ?? OUTPUT TRANSCRIPTION (delta):', delta);
+            this.emit('message', {
+              role: 'assistant',
+              text: delta,
+              timestamp: Date.now()
+            });
+            // BRAIN MEMORY: Add assistant speech to short-term buffer
+            this.brain?.addToBuffer('assistant', delta);
+            assistantEmittedThisMessage = true;
+          }
+        }
+      }
+
+      if (!assistantEmittedThisMessage && typeof outputTranscriptionText === 'string' && outputTranscriptionText.trim()) {
+        // Audio output transcription may arrive without a modelTurn.parts payload.
+        const delta = outputTranscriptionText.startsWith(this.lastOutputTranscriptionText)
+          ? outputTranscriptionText.slice(this.lastOutputTranscriptionText.length)
+          : outputTranscriptionText;
+        this.lastOutputTranscriptionText = outputTranscriptionText;
+
+        if (delta.trim()) {
+          this._isTextModalityWorking = true; // Flag for STT fallback decision
+          console.log('?? [DR. SNUGGLES SAID]:', delta);
+          console.log('[GeminiLiveClient] ?? OUTPUT TRANSCRIPTION (delta):', delta);
+          this.emit('message', {
+            role: 'assistant',
+            text: delta,
+            timestamp: Date.now()
+          });
+          // BRAIN MEMORY: Add assistant speech to short-term buffer
+          this.brain?.addToBuffer('assistant', delta);
         }
       }
 
@@ -683,7 +832,15 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
       // When Gemini finishes speaking
       if (message.serverContent?.turnComplete) {
         this.vad.setGeminiSpeaking(false);
+        this.lastInputTranscriptionText = '';
+        this.lastOutputTranscriptionText = '';
         console.log('[GeminiLiveClient] 🔄 Turn complete, user can speak');
+      }
+
+      // 🛑 INTERRUPTED: Reset Gemini speaking state if interrupted
+      if (message.serverContent?.interrupted) {
+        console.log('[GeminiLiveClient] 🛑 Gemini was interrupted');
+        this.vad.setGeminiSpeaking(false);
       }
     } catch (error) {
       console.error('[GeminiLiveClient] Error handling message:', error);
@@ -723,7 +880,7 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
   private async buildSystemInstruction(config: SessionConfig): Promise<string> {
     // If brain is available, use it to prepare context
     if (this.brain) {
-      console.log('[GeminiLiveClient] 🧠 Using Brain for system instruction');
+      console.log('[GeminiLiveClient] Using Brain for system instruction');
 
       // Get brain-enhanced context with RAG memories
       const brainContext = await this.brain.prepareSessionContext(

@@ -64,10 +64,10 @@ export class VoiceActivityDetector extends EventEmitter<VADEvents> {
   constructor(config?: Partial<VADConfig>) {
     super();
     this.config = {
-      rmsThreshold: config?.rmsThreshold ?? 0.01,
+      rmsThreshold: config?.rmsThreshold ?? 0.05, // Slightly more sensitive
       zcrThreshold: config?.zcrThreshold ?? 50,
-      minSpeechFrames: config?.minSpeechFrames ?? 3,
-      minSilenceFrames: config?.minSilenceFrames ?? 10,
+      minSpeechFrames: config?.minSpeechFrames ?? 3, // Faster start
+      minSilenceFrames: config?.minSilenceFrames ?? 15, // Faster turnaround (approx 300ms)
       sampleRate: config?.sampleRate ?? 48000
     };
 
