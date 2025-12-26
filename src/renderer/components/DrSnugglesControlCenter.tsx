@@ -118,9 +118,11 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [modalConfig, setModalConfig] = useState({
         isOpen: false,
         title: '',
-        placeholder: '',
+        placeholder: undefined as string | undefined,
+        description: undefined as string | undefined,
         confirmText: 'Confirm',
-        type: '' as '' | 'addPreset' | 'saveProfile',
+        confirmVariant: 'primary' as 'primary' | 'danger',
+        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearTranscript' | 'clearFactChecks',
     });
 
     // Setup console log forwarding to main process for debugging
@@ -777,9 +779,15 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     const handleClearTranscript = () => {
-        if (confirm('Clear all messages?')) {
-            setMessages([]);
-        }
+        setModalConfig({
+            isOpen: true,
+            title: 'Clear Transcript',
+            placeholder: undefined,
+            description: 'Are you sure you want to clear all messages? This action cannot be undone.',
+            confirmText: 'Clear Messages',
+            confirmVariant: 'danger',
+            type: 'clearTranscript',
+        });
     };
 
     const handleExportTranscript = () => {
@@ -790,13 +798,19 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         a.href = url;
         a.download = `transcript-${Date.now()}.json`;
         a.click();
+        showToast('Transcript exported to file');
     };
 
     const handleClearFactChecks = () => {
-        if (confirm('Clear all fact checks?')) {
-            setFactChecks([]);
-            setPinnedClaims(new Set());
-        }
+        setModalConfig({
+            isOpen: true,
+            title: 'Clear Fact Checks',
+            placeholder: undefined,
+            description: 'Are you sure you want to clear all fact checks? This will also unpin all claims.',
+            confirmText: 'Clear Facts',
+            confirmVariant: 'danger',
+            type: 'clearFactChecks',
+        });
     };
 
     const handleExportFactChecks = () => {
@@ -807,6 +821,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         a.href = url;
         a.download = `factchecks-${Date.now()}.json`;
         a.click();
+        showToast('Fact checks exported to file');
     };
 
     const handleClearContextHistory = () => {
@@ -818,7 +833,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             isOpen: true,
             title: 'Add favorite preset',
             placeholder: 'Enter preset text…',
+            description: undefined,
             confirmText: 'Add',
+            confirmVariant: 'primary',
             type: 'addPreset',
         });
     };
@@ -843,7 +860,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             isOpen: true,
             title: 'Save brain profile',
             placeholder: 'Enter profile name…',
+            description: undefined,
             confirmText: 'Save',
+            confirmVariant: 'primary',
             type: 'saveProfile',
         });
     };
@@ -862,6 +881,13 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             setBrainProfile(value);
             setBrainProfiles(prev => ({ ...prev, [value]: brainProfiles[value] }));
             showToast(`Profile "${value}" saved`);
+        } else if (modalConfig.type === 'clearTranscript') {
+            setMessages([]);
+            showToast('Transcript cleared');
+        } else if (modalConfig.type === 'clearFactChecks') {
+            setFactChecks([]);
+            setPinnedClaims(new Set());
+            showToast('Fact checks cleared');
         }
 
         setModalConfig(prev => ({ ...prev, isOpen: false }));
@@ -2021,7 +2047,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                 isOpen={modalConfig.isOpen}
                 title={modalConfig.title}
                 placeholder={modalConfig.placeholder}
+                description={modalConfig.description}
                 confirmText={modalConfig.confirmText}
+                confirmVariant={modalConfig.confirmVariant}
                 onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
                 onSubmit={handleModalSubmit}
             />
