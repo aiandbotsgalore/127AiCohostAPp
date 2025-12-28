@@ -5,3 +5,7 @@
 ## 2025-10-27 - Modal Consistency & Dev Environment
 **Learning:** Native `window.confirm` dialogs break the immersive dark-mode experience and are not accessible. Also, stale `.js` build artifacts alongside `.tsx` files can silently block HMR updates in this Vite setup.
 **Action:** Use the custom `InputModal` for all confirmations. Always ensure no stale `.js` files exist in source folders when working with TypeScript.
+
+## 2025-05-15 - Form Control Association
+**Learning:** Many form controls (especially `<select>` elements) were visually labeled but lacked programmatic `id`/`htmlFor` association, making them inaccessible to screen readers. Implicit nesting (input inside label) is not consistently used.
+**Action:** Always add unique `id`s to form inputs and matching `htmlFor` attributes to their corresponding labels to ensure robust accessibility.

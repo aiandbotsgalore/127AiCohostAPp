@@ -1004,8 +1004,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
                                 {/* Voice Style Controls */}
                                 <div style={styles.modControl}>
-                                    <label style={styles.modLabel}>Style</label>
+                                    <label htmlFor="voice-style-select" style={styles.modLabel}>Style</label>
                                     <select
+                                        id="voice-style-select"
                                         style={styles.styleSelect}
                                         value={voiceStyle}
                                         onChange={(e) => {
@@ -1022,8 +1023,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                     </select>
                                 </div>
                                 <div style={styles.modControl}>
-                                    <label style={styles.modLabel}>Pace</label>
+                                    <label htmlFor="voice-pace-select" style={styles.modLabel}>Pace</label>
                                     <select
+                                        id="voice-pace-select"
                                         style={styles.styleSelect}
                                         value={voicePace}
                                         onChange={(e) => {
@@ -1038,8 +1040,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                     </select>
                                 </div>
                                 <div style={styles.modControl}>
-                                    <label style={styles.modLabel}>Tone</label>
+                                    <label htmlFor="voice-tone-select" style={styles.modLabel}>Tone</label>
                                     <select
+                                        id="voice-tone-select"
                                         style={styles.styleSelect}
                                         value={voiceTone}
                                         onChange={(e) => {
@@ -1055,8 +1058,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                     </select>
                                 </div>
                                 <div style={styles.modControl}>
-                                    <label style={styles.modLabel}>Accent</label>
+                                    <label htmlFor="voice-accent-select" style={styles.modLabel}>Accent</label>
                                     <select
+                                        id="voice-accent-select"
                                         style={styles.styleSelect}
                                         value={voiceAccent}
                                         onChange={(e) => {
@@ -1216,8 +1220,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                 </div>
 
                                 <div style={styles.controlItem}>
-                                    <div style={styles.controlLabel}>Listening Sensitivity (VAD)</div>
+                                    <label htmlFor="vad-sensitivity-select" style={styles.controlLabel}>Listening Sensitivity (VAD)</label>
                                     <select
+                                        id="vad-sensitivity-select"
                                         style={styles.sensitivitySelect}
                                         value={listeningSensitivity}
                                         onChange={(e) => {
@@ -1650,8 +1655,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <div style={styles.settingsSection}>
                                 <h3 style={styles.settingsSectionTitle}>Audio Devices</h3>
                                 <div style={styles.settingRow}>
-                                    <label style={styles.settingLabel}>Input Device:</label>
+                                    <label htmlFor="input-device-select" style={styles.settingLabel}>Input Device:</label>
                                     <select
+                                        id="input-device-select"
                                         value={selectedInputDevice}
                                         onChange={(e) => {
                                             setSelectedInputDevice(e.target.value);
@@ -1666,8 +1672,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                     </select>
                                 </div>
                                 <div style={styles.settingRow}>
-                                    <label style={styles.settingLabel}>Output Device:</label>
+                                    <label htmlFor="output-device-select" style={styles.settingLabel}>Output Device:</label>
                                     <select
+                                        id="output-device-select"
                                         value={selectedOutputDevice}
                                         onChange={(e) => {
                                             setSelectedOutputDevice(e.target.value);
