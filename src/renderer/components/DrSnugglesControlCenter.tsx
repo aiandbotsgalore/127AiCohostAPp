@@ -948,6 +948,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('voice')}
+                                aria-label="Toggle voice section"
                             >
                                 {collapsedSections.has('voice') ? '▼' : '▲'}
                             </button>
@@ -1127,6 +1128,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('brain')}
+                                aria-label="Toggle brain section"
                             >
                                 {collapsedSections.has('brain') ? '▼' : '▲'}
                             </button>
@@ -1242,6 +1244,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('analytics')}
+                                aria-label="Toggle analytics section"
                             >
                                 {collapsedSections.has('analytics') ? '▼' : '▲'}
                             </button>
@@ -1411,6 +1414,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('context')}
+                                aria-label="Toggle context section"
                             >
                                 {collapsedSections.has('context') ? '▼' : '▲'}
                             </button>
@@ -1486,6 +1490,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('prompt')}
+                                aria-label="Toggle prompt section"
                             >
                                 {collapsedSections.has('prompt') ? '▼' : '▲'}
                             </button>
@@ -1549,6 +1554,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('facts')}
+                                aria-label="Toggle facts section"
                             >
                                 {collapsedSections.has('facts') ? '▼' : '▲'}
                             </button>
