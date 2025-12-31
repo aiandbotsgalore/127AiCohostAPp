@@ -9,12 +9,12 @@ export const StatusBarWidget: React.FC = () => {
     const [sessionStart] = useState(Date.now());
     const [currentTime, setCurrentTime] = useState(Date.now());
 
-    // Update session duration timer
+    // Effect to update current time every second for the session duration
     useEffect(() => {
-        const timer = setInterval(() => {
+        const intervalId = setInterval(() => {
             setCurrentTime(Date.now());
         }, 1000);
-        return () => clearInterval(timer);
+        return () => clearInterval(intervalId);
     }, []);
 
     // IPC Listeners
@@ -69,9 +69,7 @@ export const StatusBarWidget: React.FC = () => {
             </div>
             <div style={styles.statusBarItem}>
                 <span style={styles.statusBarLabel}>SESSION</span>
-                <span style={styles.statusBarValue}>
-                    {Math.floor(sessionDuration / 60)}:{(sessionDuration % 60).toString().padStart(2, '0')}
-                </span>
+                <span style={styles.statusBarValue}>{Math.floor(sessionDuration / 60)}:{(sessionDuration % 60).toString().padStart(2, '0')}</span>
             </div>
         </div>
     );
