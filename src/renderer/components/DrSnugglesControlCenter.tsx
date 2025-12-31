@@ -6,6 +6,7 @@ import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
+import { StatusBarWidget } from './StatusBarWidget';
 import { styles } from './styles';
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {

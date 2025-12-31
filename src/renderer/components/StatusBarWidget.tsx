@@ -52,7 +52,7 @@ export const StatusBarWidget: React.FC = () => {
                             key={idx}
                             style={{
                                 ...styles.miniGraphBar,
-                                height: `${(val / 300) * 100}%`,
+                                height: `${Math.min((val / 300) * 100, 100)}%`, // Clamp to 100%
                                 backgroundColor: val < 100 ? '#00ff88' : val < 200 ? '#ffaa00' : '#ff4444'
                             }}
                         />
