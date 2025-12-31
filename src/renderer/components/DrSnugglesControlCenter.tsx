@@ -124,6 +124,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         type: '' as '' | 'addPreset' | 'saveProfile' | 'clearTranscript' | 'clearFactChecks' | 'savePrompt',
     });
 
+    const [isConnecting, setIsConnecting] = useState(false);
+
     // Setup console log forwarding to main process for debugging
     useEffect(() => {
         if (!(window as any).electron) return;
@@ -503,20 +505,31 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     const handleGoLive = async () => {
-        const newState = !isLive;
-        setIsLive(newState);
-        ipc.send('stream:toggle', newState);
+        if (isConnecting) return;
 
-        if (newState) {
-            try {
+        const newState = !isLive;
+        setIsConnecting(true);
+
+        try {
+            if (newState) {
                 await audioCaptureService.current?.start();
-            } catch (e) {
-                console.error("Failed to start audio capture:", e);
+                ipc.send('stream:toggle', true);
+                setIsLive(true);
+            } else {
+                audioCaptureService.current?.stop();
+                ipc.send('stream:toggle', false);
+                setIsLive(false);
+            }
+        } catch (e) {
+            console.error("Failed to toggle stream:", e);
+            showToast("Failed to toggle stream", "error");
+            // If we failed to start, ensure we're marked as offline
+            if (newState) {
                 setIsLive(false);
                 ipc.send('stream:toggle', false);
             }
-        } else {
-            audioCaptureService.current?.stop();
+        } finally {
+            setIsConnecting(false);
         }
     };
 
@@ -820,11 +833,21 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         <span style={styles.statusText}>{isLive ? 'LIVE' : 'OFFLINE'}</span>
                     </div>
                     <button
-                        style={{ ...styles.goLiveButton, ...(isLive ? styles.goLiveButtonActive : {}) }}
+                        style={{
+                            ...styles.goLiveButton,
+                            ...(isLive ? styles.goLiveButtonActive : {}),
+                            cursor: isConnecting ? 'wait' : 'pointer',
+                            opacity: isConnecting ? 0.7 : 1
+                        }}
                         onClick={handleGoLive}
-                        aria-label={isLive ? 'End stream' : 'Go live'}
+                        disabled={isConnecting}
+                        aria-label={isConnecting ? (isLive ? 'Stopping stream' : 'Starting stream') : (isLive ? 'End stream' : 'Go live')}
+                        aria-busy={isConnecting}
                     >
-                        {isLive ? '⏹ END STREAM' : '▶ GO LIVE'}
+                        {isConnecting
+                            ? (isLive ? '⏳ STOPPING...' : '⏳ CONNECTING...')
+                            : (isLive ? '⏹ END STREAM' : '▶ GO LIVE')
+                        }
                     </button>
                     <button
                         style={{
