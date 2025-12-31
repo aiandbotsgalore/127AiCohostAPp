@@ -933,12 +933,11 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                 {collapsedSections.has('avatar') ? '▼' : '▲'}
                             </button>
                         </div>
-                        {!collapsedSections.has('avatar') && (
-                            <AvatarWidget
-                                vadStatus={vadStatus}
-                                onStatusAction={handleStatusAction}
-                            />
-                        )}
+                        <AvatarWidget
+                            vadStatus={vadStatus}
+                            collapsed={collapsedSections.has('avatar')}
+                            onStatusAction={handleStatusAction}
+                        />
                     </div>
 
                     {/* Voice Configuration */}
