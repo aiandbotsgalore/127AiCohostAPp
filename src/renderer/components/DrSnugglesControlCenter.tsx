@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
@@ -6,8 +6,19 @@ import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
-import { StatusBarWidget } from './StatusBarWidget';
 import { styles } from './styles';
+
+// Voice options
+const voices: Record<string, string> = {
+    'Puck': 'Youthful, energetic, slightly mischievous',
+    'Charon': 'Deep, gravelly, authoritative',
+    'Kore': 'Warm, nurturing, wise',
+    'Fenrir': 'Fierce, powerful, commanding',
+    'Aoede': 'Musical, melodic, soothing',
+    'Leda': 'Elegant, refined, sophisticated',
+    'Orus': 'Mysterious, enigmatic, alluring',
+    'Zephyr': 'Light, airy, playful'
+};
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
     const [copied, setCopied] = useState(false);
@@ -194,18 +205,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         };
     }, []);
 
-
-    // Voice options
-    const voices: Record<string, string> = {
-        'Puck': 'Youthful, energetic, slightly mischievous',
-        'Charon': 'Deep, gravelly, authoritative',
-        'Kore': 'Warm, nurturing, wise',
-        'Fenrir': 'Fierce, powerful, commanding',
-        'Aoede': 'Musical, melodic, soothing',
-        'Leda': 'Elegant, refined, sophisticated',
-        'Orus': 'Mysterious, enigmatic, alluring',
-        'Zephyr': 'Light, airy, playful'
-    };
 
     const [brainProfiles, setBrainProfiles] = useState<Record<string, any>>({
         'Standard': { thinking: false, budget: 5000, emotional: true, interrupt: true, sensitivity: 'Medium' },
@@ -777,32 +776,32 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
     // Filter messages with defensive null checks to prevent errors when msg.speaker is undefined
     // Messages may come from STT (with role) or IPC (with speaker), so we check both
-    const filteredMessages = messages.filter(msg =>
+    const filteredMessages = useMemo(() => messages.filter(msg =>
         !transcriptSearch ||
         (msg.text && msg.text.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
         (msg.speaker && msg.speaker.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
         (msg.role && msg.role.toLowerCase().includes(transcriptSearch.toLowerCase()))
-    );
+    ), [messages, transcriptSearch]);
 
-    const filteredFactChecks = factChecks.filter(claim =>
+    const filteredFactChecks = useMemo(() => factChecks.filter(claim =>
         factCheckFilter === 'All' || claim.verdict === factCheckFilter
-    );
+    ), [factChecks, factCheckFilter]);
 
-    const sortedFactChecks = [...filteredFactChecks].sort((a, b) => {
+    const sortedFactChecks = useMemo(() => [...filteredFactChecks].sort((a, b) => {
         const aPinned = pinnedClaims.has(a.id);
         const bPinned = pinnedClaims.has(b.id);
         if (aPinned && !bPinned) return -1;
         if (!aPinned && bPinned) return 1;
         return 0;
-    });
+    }), [filteredFactChecks, pinnedClaims]);
 
-    const factCheckStats = {
+    const factCheckStats = useMemo(() => ({
         total: factChecks.length,
         true: factChecks.filter(c => c.verdict === 'True').length,
         false: factChecks.filter(c => c.verdict === 'False').length,
         misleading: factChecks.filter(c => c.verdict === 'Misleading').length,
         unverified: factChecks.filter(c => c.verdict === 'Unverified').length
-    };
+    }), [factChecks]);
 
     const baseFontSize = fontSize / 100;
 
