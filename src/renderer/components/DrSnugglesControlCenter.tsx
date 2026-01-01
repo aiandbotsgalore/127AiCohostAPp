@@ -6,7 +6,6 @@ import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
-import { StatusBarWidget } from './StatusBarWidget';
 import { styles } from './styles';
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
@@ -175,6 +174,18 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const audioCaptureService = useRef<AudioCaptureService | null>(null);
     const audioPlaybackService = useRef<AudioPlaybackService | null>(null);
     const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+    // Settings Modal Escape Key Handler
+    useEffect(() => {
+        if (!showSettings) return;
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setShowSettings(false);
+            }
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [showSettings]);
 
     useEffect(() => {
         try {
@@ -1335,6 +1346,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                 value={messageInput}
                                 onChange={(e) => setMessageInput(e.target.value)}
                                 placeholder="Type a message to Dr. Snuggles..."
+                                aria-label="Message to Dr. Snuggles"
                                 style={{
                                     flex: 1,
                                     padding: '12px',
@@ -1599,7 +1611,13 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             {/* Settings Panel Overlay */}
             {showSettings && (
                 <div style={styles.settingsOverlay} onClick={() => setShowSettings(false)}>
-                    <div style={styles.settingsPanel} onClick={(e) => e.stopPropagation()}>
+                    <div
+                        style={styles.settingsPanel}
+                        onClick={(e) => e.stopPropagation()}
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label="Settings"
+                    >
                         <div style={styles.settingsPanelHeader}>
                             <h2 style={styles.settingsTitle}>⚙️ SETTINGS</h2>
                             <button

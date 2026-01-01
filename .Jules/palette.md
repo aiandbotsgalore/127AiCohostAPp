@@ -9,3 +9,6 @@
 ## 2025-05-15 - Form Control Association
 **Learning:** Many form controls (especially `<select>` elements) were visually labeled but lacked programmatic `id`/`htmlFor` association, making them inaccessible to screen readers. Implicit nesting (input inside label) is not consistently used.
 **Action:** Always add unique `id`s to form inputs and matching `htmlFor` attributes to their corresponding labels to ensure robust accessibility.
+## 2024-03-24 - Inline Style Overlays and Accessibility
+**Learning:** Custom modal overlays built with inline styles often lack critical accessibility attributes (role, aria-modal, focus management) that are typically provided by component libraries or standard modal implementations. This pattern was observed in the Settings modal of `DrSnugglesControlCenter.tsx`.
+**Action:** When encountering inline-styled overlays, proactively check for and add `role="dialog"`, `aria-modal="true"`, and appropriate `aria-label`/`aria-labelledby` attributes. Also ensure keyboard interactions like `Escape` to close are implemented manually since there's no library handling it.
