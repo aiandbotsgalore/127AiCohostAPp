@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { ipc } from '../ipc';
 import { styles } from './styles';
 
-export const AudioMeterWidget: React.FC = () => {
+export const AudioMeterWidget: React.FC = React.memo(() => {
   const [audioLevel, setAudioLevel] = useState(0);
 
   useEffect(() => {
@@ -28,4 +28,4 @@ export const AudioMeterWidget: React.FC = () => {
       </div>
     </div>
   );
-};
+});

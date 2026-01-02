@@ -532,12 +532,12 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         }
     };
 
-    const handleVoiceChange = (e) => {
+    const handleVoiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedVoice(e.target.value);
         ipc.send('voice:select', e.target.value);
     };
 
-    const handleVolumeChange = (e) => {
+    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setOutputVolume(parseInt(e.target.value));
         ipc.send('audio:set-volume', parseInt(e.target.value) / 100);
     };
@@ -556,7 +556,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         ipc.send('audio:interrupt');
     };
 
-    const handleStatusAction = (action) => {
+    const handleStatusAction = (action: string) => {
         ipc.send('avatar:action', action);
     };
 
@@ -603,8 +603,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         ipc.send('send-message', text);
     };
 
-    const handleQuickPreset = (preset) => {
-        const presets = {
+    const handleQuickPreset = (preset: string) => {
+        const presets: Record<string, string> = {
             'Wrap up': 'Please wrap up this topic and move on.',
             'Be brief': 'Keep your next responses brief and concise.',
             'Change topic': 'Let\'s change the subject to something else.',
@@ -634,15 +634,17 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         });
     };
 
-    const handleLoadPrompt = (prompt) => {
-        setSystemPrompt(prompt.content);
+    const handleLoadPrompt = (prompt: any) => {
+        if (prompt) {
+            setSystemPrompt(prompt.content);
+        }
     };
 
     const handleResetPrompt = () => {
         setSystemPrompt(savedPrompts[0].content);
     };
 
-    const togglePinClaim = (id) => {
+    const togglePinClaim = (id: string) => {
         setPinnedClaims(prev => {
             const next = new Set(prev);
             if (next.has(id)) {
@@ -720,7 +722,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         ipc.send('voice:test', selectedVoice);
     };
 
-    const handleBrainProfileChange = (profile) => {
+    const handleBrainProfileChange = (profile: string) => {
         setBrainProfile(profile);
         const config = brainProfiles[profile];
         setThinkingMode(config.thinking);
@@ -775,7 +777,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         setModalConfig(prev => ({ ...prev, isOpen: false }));
     };
 
-    const toggleSection = (section) => {
+    const toggleSection = (section: string) => {
         setCollapsedSections(prev => {
             const next = new Set(prev);
             if (next.has(section)) {
