@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
@@ -7,6 +7,18 @@ import { AvatarWidget } from './AvatarWidget';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
 import { styles } from './styles';
+
+// Voice options
+const voices: Record<string, string> = {
+    'Puck': 'Youthful, energetic, slightly mischievous',
+    'Charon': 'Deep, gravelly, authoritative',
+    'Kore': 'Warm, nurturing, wise',
+    'Fenrir': 'Fierce, powerful, commanding',
+    'Aoede': 'Musical, melodic, soothing',
+    'Leda': 'Elegant, refined, sophisticated',
+    'Orus': 'Mysterious, enigmatic, alluring',
+    'Zephyr': 'Light, airy, playful'
+};
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
     const [copied, setCopied] = useState(false);
@@ -123,6 +135,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         type: '' as '' | 'addPreset' | 'saveProfile' | 'clearTranscript' | 'clearFactChecks' | 'savePrompt',
     });
 
+    const [isConnecting, setIsConnecting] = useState(false);
+
     // Setup console log forwarding to main process for debugging
     useEffect(() => {
         if (!(window as any).electron) return;
@@ -205,18 +219,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         };
     }, []);
 
-
-    // Voice options
-    const voices: Record<string, string> = {
-        'Puck': 'Youthful, energetic, slightly mischievous',
-        'Charon': 'Deep, gravelly, authoritative',
-        'Kore': 'Warm, nurturing, wise',
-        'Fenrir': 'Fierce, powerful, commanding',
-        'Aoede': 'Musical, melodic, soothing',
-        'Leda': 'Elegant, refined, sophisticated',
-        'Orus': 'Mysterious, enigmatic, alluring',
-        'Zephyr': 'Light, airy, playful'
-    };
 
     const [brainProfiles, setBrainProfiles] = useState<Record<string, any>>({
         'Standard': { thinking: false, budget: 5000, emotional: true, interrupt: true, sensitivity: 'Medium' },
@@ -514,29 +516,40 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     const handleGoLive = async () => {
-        const newState = !isLive;
-        setIsLive(newState);
-        ipc.send('stream:toggle', newState);
+        if (isConnecting) return;
 
-        if (newState) {
-            try {
+        const newState = !isLive;
+        setIsConnecting(true);
+
+        try {
+            if (newState) {
                 await audioCaptureService.current?.start();
-            } catch (e) {
-                console.error("Failed to start audio capture:", e);
+                ipc.send('stream:toggle', true);
+                setIsLive(true);
+            } else {
+                audioCaptureService.current?.stop();
+                ipc.send('stream:toggle', false);
+                setIsLive(false);
+            }
+        } catch (e) {
+            console.error("Failed to toggle stream:", e);
+            showToast("Failed to toggle stream", "error");
+            // If we failed to start, ensure we're marked as offline
+            if (newState) {
                 setIsLive(false);
                 ipc.send('stream:toggle', false);
             }
-        } else {
-            audioCaptureService.current?.stop();
+        } finally {
+            setIsConnecting(false);
         }
     };
 
-    const handleVoiceChange = (e) => {
+    const handleVoiceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedVoice(e.target.value);
         ipc.send('voice:select', e.target.value);
     };
 
-    const handleVolumeChange = (e) => {
+    const handleVolumeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setOutputVolume(parseInt(e.target.value));
         ipc.send('audio:set-volume', parseInt(e.target.value) / 100);
     };
@@ -555,7 +568,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         ipc.send('audio:interrupt');
     };
 
-    const handleStatusAction = (action) => {
+    const handleStatusAction = (action: string) => {
         ipc.send('avatar:action', action);
     };
 
@@ -602,8 +615,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         ipc.send('send-message', text);
     };
 
-    const handleQuickPreset = (preset) => {
-        const presets = {
+    const handleQuickPreset = (preset: string) => {
+        const presets: Record<string, string> = {
             'Wrap up': 'Please wrap up this topic and move on.',
             'Be brief': 'Keep your next responses brief and concise.',
             'Change topic': 'Let\'s change the subject to something else.',
@@ -633,15 +646,17 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         });
     };
 
-    const handleLoadPrompt = (prompt) => {
-        setSystemPrompt(prompt.content);
+    const handleLoadPrompt = (prompt: any) => {
+        if (prompt) {
+            setSystemPrompt(prompt.content);
+        }
     };
 
     const handleResetPrompt = () => {
         setSystemPrompt(savedPrompts[0].content);
     };
 
-    const togglePinClaim = (id) => {
+    const togglePinClaim = (id: string) => {
         setPinnedClaims(prev => {
             const next = new Set(prev);
             if (next.has(id)) {
@@ -719,7 +734,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         ipc.send('voice:test', selectedVoice);
     };
 
-    const handleBrainProfileChange = (profile) => {
+    const handleBrainProfileChange = (profile: string) => {
         setBrainProfile(profile);
         const config = brainProfiles[profile];
         setThinkingMode(config.thinking);
@@ -774,7 +789,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         setModalConfig(prev => ({ ...prev, isOpen: false }));
     };
 
-    const toggleSection = (section) => {
+    const toggleSection = (section: string) => {
         setCollapsedSections(prev => {
             const next = new Set(prev);
             if (next.has(section)) {
@@ -788,32 +803,32 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
     // Filter messages with defensive null checks to prevent errors when msg.speaker is undefined
     // Messages may come from STT (with role) or IPC (with speaker), so we check both
-    const filteredMessages = messages.filter(msg =>
+    const filteredMessages = useMemo(() => messages.filter(msg =>
         !transcriptSearch ||
         (msg.text && msg.text.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
         (msg.speaker && msg.speaker.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
         (msg.role && msg.role.toLowerCase().includes(transcriptSearch.toLowerCase()))
-    );
+    ), [messages, transcriptSearch]);
 
-    const filteredFactChecks = factChecks.filter(claim =>
+    const filteredFactChecks = useMemo(() => factChecks.filter(claim =>
         factCheckFilter === 'All' || claim.verdict === factCheckFilter
-    );
+    ), [factChecks, factCheckFilter]);
 
-    const sortedFactChecks = [...filteredFactChecks].sort((a, b) => {
+    const sortedFactChecks = useMemo(() => [...filteredFactChecks].sort((a, b) => {
         const aPinned = pinnedClaims.has(a.id);
         const bPinned = pinnedClaims.has(b.id);
         if (aPinned && !bPinned) return -1;
         if (!aPinned && bPinned) return 1;
         return 0;
-    });
+    }), [filteredFactChecks, pinnedClaims]);
 
-    const factCheckStats = {
+    const factCheckStats = useMemo(() => ({
         total: factChecks.length,
         true: factChecks.filter(c => c.verdict === 'True').length,
         false: factChecks.filter(c => c.verdict === 'False').length,
         misleading: factChecks.filter(c => c.verdict === 'Misleading').length,
         unverified: factChecks.filter(c => c.verdict === 'Unverified').length
-    };
+    }), [factChecks]);
 
     const baseFontSize = fontSize / 100;
 
@@ -831,11 +846,21 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         <span style={styles.statusText}>{isLive ? 'LIVE' : 'OFFLINE'}</span>
                     </div>
                     <button
-                        style={{ ...styles.goLiveButton, ...(isLive ? styles.goLiveButtonActive : {}) }}
+                        style={{
+                            ...styles.goLiveButton,
+                            ...(isLive ? styles.goLiveButtonActive : {}),
+                            cursor: isConnecting ? 'wait' : 'pointer',
+                            opacity: isConnecting ? 0.7 : 1
+                        }}
                         onClick={handleGoLive}
-                        aria-label={isLive ? 'End stream' : 'Go live'}
+                        disabled={isConnecting}
+                        aria-label={isConnecting ? (isLive ? 'Stopping stream' : 'Starting stream') : (isLive ? 'End stream' : 'Go live')}
+                        aria-busy={isConnecting}
                     >
-                        {isLive ? '⏹ END STREAM' : '▶ GO LIVE'}
+                        {isConnecting
+                            ? (isLive ? '⏳ STOPPING...' : '⏳ CONNECTING...')
+                            : (isLive ? '⏹ END STREAM' : '▶ GO LIVE')
+                        }
                     </button>
                     <button
                         style={{

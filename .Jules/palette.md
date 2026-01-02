@@ -12,3 +12,7 @@
 ## 2024-03-24 - Inline Style Overlays and Accessibility
 **Learning:** Custom modal overlays built with inline styles often lack critical accessibility attributes (role, aria-modal, focus management) that are typically provided by component libraries or standard modal implementations. This pattern was observed in the Settings modal of `DrSnugglesControlCenter.tsx`.
 **Action:** When encountering inline-styled overlays, proactively check for and add `role="dialog"`, `aria-modal="true"`, and appropriate `aria-label`/`aria-labelledby` attributes. Also ensure keyboard interactions like `Escape` to close are implemented manually since there's no library handling it.
+
+## 2024-05-23 - Immediate Feedback for Async Actions
+**Learning:** Users often double-clicked the "Go Live" button because there was no immediate visual feedback during the connection handshake.
+**Action:** Added an `isConnecting` state that immediately disables the button and changes text to "CONNECTING..." (or "STOPPING..."). This pattern should be applied to all async triggers in the app.
