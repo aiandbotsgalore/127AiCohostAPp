@@ -9,3 +9,7 @@
 ## 2025-05-15 - Form Control Association
 **Learning:** Many form controls (especially `<select>` elements) were visually labeled but lacked programmatic `id`/`htmlFor` association, making them inaccessible to screen readers. Implicit nesting (input inside label) is not consistently used.
 **Action:** Always add unique `id`s to form inputs and matching `htmlFor` attributes to their corresponding labels to ensure robust accessibility.
+
+## 2024-05-23 - Immediate Feedback for Async Actions
+**Learning:** Users often double-clicked the "Go Live" button because there was no immediate visual feedback during the connection handshake.
+**Action:** Added an `isConnecting` state that immediately disables the button and changes text to "CONNECTING..." (or "STOPPING..."). This pattern should be applied to all async triggers in the app.
