@@ -7,17 +7,8 @@ export const StatusBarWidget: React.FC = () => {
     const [latencyHistory, setLatencyHistory] = useState<number[]>([]);
     const [processingStatus, setProcessingStatus] = useState({ queueDepth: 0, processingDelay: 0 });
     const [sessionStart] = useState(Date.now());
-    const [currentTime, setCurrentTime] = useState(Date.now());
+    const [sessionDuration, setSessionDuration] = useState(0);
 
-    // Effect to update current time every second for the session duration
-    useEffect(() => {
-        const intervalId = setInterval(() => {
-            setCurrentTime(Date.now());
-        }, 1000);
-        return () => clearInterval(intervalId);
-    }, []);
-
-    // IPC Listeners
     useEffect(() => {
         const unsubscribers: (() => void)[] = [];
 
@@ -32,12 +23,15 @@ export const StatusBarWidget: React.FC = () => {
             setProcessingStatus(data);
         }));
 
+        const timerInterval = setInterval(() => {
+             setSessionDuration(Math.floor((Date.now() - sessionStart) / 1000));
+        }, 1000);
+
         return () => {
             unsubscribers.forEach(unsub => unsub && unsub());
+            clearInterval(timerInterval);
         };
-    }, []);
-
-    const sessionDuration = Math.floor((currentTime - sessionStart) / 1000);
+    }, [sessionStart]);
 
     return (
         <div style={styles.statusBar}>
@@ -52,7 +46,7 @@ export const StatusBarWidget: React.FC = () => {
                             key={idx}
                             style={{
                                 ...styles.miniGraphBar,
-                                height: `${Math.min((val / 300) * 100, 100)}%`, // Clamp to 100%
+                                height: `${Math.min((val / 300) * 100, 100)}%`,
                                 backgroundColor: val < 100 ? '#00ff88' : val < 200 ? '#ffaa00' : '#ff4444'
                             }}
                         />
@@ -69,7 +63,9 @@ export const StatusBarWidget: React.FC = () => {
             </div>
             <div style={styles.statusBarItem}>
                 <span style={styles.statusBarLabel}>SESSION</span>
-                <span style={styles.statusBarValue}>{Math.floor(sessionDuration / 60)}:{(sessionDuration % 60).toString().padStart(2, '0')}</span>
+                <span style={styles.statusBarValue}>
+                    {Math.floor(sessionDuration / 60)}:{(sessionDuration % 60).toString().padStart(2, '0')}
+                </span>
             </div>
         </div>
     );
