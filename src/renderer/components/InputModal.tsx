@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useId } from 'react';
 import { styles } from './styles';
 
 export interface InputModalProps {
@@ -24,6 +24,11 @@ export const InputModal: React.FC<InputModalProps> = ({
 }) => {
   const [value, setValue] = useState('');
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Use useId if available (React 18+), otherwise fallback to random string
+  const uniqueId = useId ? useId() : Math.random().toString(36).substr(2, 9);
+  const titleId = `modal-title-${uniqueId}`;
+  const descId = `modal-desc-${uniqueId}`;
 
   useEffect(() => {
     if (isOpen) {
@@ -60,16 +65,24 @@ export const InputModal: React.FC<InputModalProps> = ({
       <div
         style={{ ...styles.settingsPanel, height: 'auto', maxHeight: 'none', width: '400px' }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descId : undefined}
       >
         <div style={styles.settingsPanelHeader}>
-          <h2 style={styles.settingsTitle}>{title}</h2>
-          <button style={styles.settingsCloseBtn} onClick={onClose}>
+          <h2 id={titleId} style={styles.settingsTitle}>{title}</h2>
+          <button
+            style={styles.settingsCloseBtn}
+            onClick={onClose}
+            aria-label="Close modal"
+          >
             ✕
           </button>
         </div>
         <div style={styles.modalContent}>
           {description && (
-            <div style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5' }}>
+            <div id={descId} style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5' }}>
               {description}
             </div>
           )}
@@ -80,6 +93,7 @@ export const InputModal: React.FC<InputModalProps> = ({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={placeholder}
+              aria-label={title}
               style={styles.modalInput}
               autoFocus
               onKeyDown={(e) => {
