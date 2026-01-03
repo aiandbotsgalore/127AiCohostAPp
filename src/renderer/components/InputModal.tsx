@@ -60,28 +60,39 @@ export const InputModal: React.FC<InputModalProps> = ({
       <div
         style={{ ...styles.settingsPanel, height: 'auto', maxHeight: 'none', width: '400px' }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="modal-title"
       >
         <div style={styles.settingsPanelHeader}>
-          <h2 style={styles.settingsTitle}>{title}</h2>
-          <button style={styles.settingsCloseBtn} onClick={onClose}>
+          <h2 id="modal-title" style={styles.settingsTitle}>{title}</h2>
+          <button style={styles.settingsCloseBtn} onClick={onClose} aria-label="Close modal">
             ✕
           </button>
         </div>
         <div style={styles.modalContent}>
           {description && (
-            <div style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5' }}>
-              {description}
-            </div>
+            placeholder ? (
+              <label htmlFor="modal-input" style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5', display: 'block' }}>
+                {description}
+              </label>
+            ) : (
+              <div style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5' }}>
+                {description}
+              </div>
+            )
           )}
 
           {placeholder && (
             <input
+              id="modal-input"
               type="text"
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={placeholder}
               style={styles.modalInput}
               autoFocus
+              aria-labelledby={!description ? "modal-title" : undefined}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') submit();
                 if (e.key === 'Escape') onClose();
