@@ -1,45 +1,24 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
+import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
 import { StatusBarWidget } from './StatusBarWidget';
 import { styles } from './styles';
 
-const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
-    const [copied, setCopied] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-    useEffect(() => {
-        return () => {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-        };
-    }, []);
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(text).then(() => {
-            setCopied(true);
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-            timeoutRef.current = setTimeout(() => setCopied(false), 2000);
-        }).catch(err => {
-            console.error('Failed to copy:', err);
-        });
-    };
-
-    return (
-        <button
-            style={{ ...style, color: copied ? '#00ff88' : style?.color }}
-            onClick={handleCopy}
-            title={copied ? 'Copied!' : 'Copy message'}
-            aria-label={copied ? 'Copied' : 'Copy message'}
-        >
-            {copied ? '✓' : '📋'}
-        </button>
-    );
+// Voice options
+const voices: Record<string, string> = {
+  Puck: 'Youthful, energetic, slightly mischievous',
+  Charon: 'Deep, gravelly, authoritative',
+  Kore: 'Warm, nurturing, wise',
+  Fenrir: 'Fierce, powerful, commanding',
+  Aoede: 'Musical, melodic, soothing',
+  Leda: 'Elegant, refined, sophisticated',
+  Orus: 'Mysterious, enigmatic, alluring',
+  Zephyr: 'Light, airy, playful'
 };
 
 const DrSnugglesControlCenter: React.FC = () => {
@@ -1791,89 +1770,36 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Tooltips via title attributes handled natively */}
         </div>
-    );
+      </div>
+    </div>
+  );
 };
-
 
 const styleSheet = document.createElement('style');
 styleSheet.textContent = `
-            @keyframes pulse {
-                0 %, 100 % { opacity: 1; box- shadow: 0 0 10px currentColor; }
-            50% {opacity: 0.6; box-shadow: 0 0 20px currentColor; }
-  }
+@keyframes pulse {
+  0%,100% { opacity:1; box-shadow:0 0 10px currentColor; }
+  50% { opacity:.6; box-shadow:0 0 20px currentColor; }
+}
 
-            @keyframes slideIn {
-                from {transform: translateX(100%); opacity: 0; }
-            to {transform: translateX(0); opacity: 1; }
-  }
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance:none;
+  width:14px;
+  height:14px;
+  border-radius:50%;
+  background:#00ddff;
+}
 
-            input[type="range"]::-webkit-slider-thumb {
-                -webkit - appearance: none;
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: #00ddff;
-            cursor: pointer;
-            box-shadow: 0 0 8px rgba(0, 221, 255, 0.5);
-  }
+.high-contrast {
+  filter:contrast(1.3) brightness(1.1);
+}
 
-            input[type="range"]::-moz-range-thumb {
-                width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            background: #00ddff;
-            cursor: pointer;
-            border: none;
-            box-shadow: 0 0 8px rgba(0, 221, 255, 0.5);
-  }
-
-            button:hover {
-                transform: scale(1.03);
-            box-shadow: 0 0 15px rgba(138, 43, 226, 0.4);
-  }
-
-            button:active {
-                transform: scale(0.97);
-  }
-
-            select option {
-                background: #1a0033;
-            color: #ffffff;
-  }
-
-            ::-webkit-scrollbar {
-                width: 6px;
-            height: 6px;
-  }
-
-            ::-webkit-scrollbar-track {
-                background: rgba(0, 0, 0, 0.2);
-            border-radius: 3px;
-  }
-
-            ::-webkit-scrollbar-thumb {
-                background: rgba(138, 43, 226, 0.5);
-            border-radius: 3px;
-  }
-
-            ::-webkit-scrollbar-thumb:hover {
-                background: rgba(138, 43, 226, 0.7);
-  }
-
-            textarea:focus, select:focus, input:focus {
-                outline: 1px solid rgba(138, 43, 226, 0.5);
-  }
-
-            .high-contrast {
-                filter: contrast(1.3) brightness(1.1);
-  }
-
-            .high-contrast button,
-            .high-contrast select,
-            .high-contrast input {
-                border - width: 2px;
-  }
-            `;
+.high-contrast button,
+.high-contrast select,
+.high-contrast input {
+  border-width:2px;
+}
+`;
 document.head.appendChild(styleSheet);
 
 export default DrSnugglesControlCenter;

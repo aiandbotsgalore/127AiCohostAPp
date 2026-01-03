@@ -4,10 +4,11 @@ import { styles } from './styles';
 
 interface AvatarWidgetProps {
     vadStatus: { isSpeaking: boolean; isListening: boolean };
+    collapsed: boolean;
     onStatusAction: (action: string) => void;
 }
 
-export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ vadStatus, onStatusAction }) => {
+export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ vadStatus, collapsed, onStatusAction }) => {
     const [blinkState, setBlinkState] = useState(false);
     const [mouthOpen, setMouthOpen] = useState(0);
 
@@ -128,7 +129,9 @@ export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ vadStatus, onStatusA
                 cancelAnimationFrame(animationFrameId);
             }
         };
-    }, []);
+    }, [collapsed]);
+
+    if (collapsed) return null;
 
     return (
         <>
