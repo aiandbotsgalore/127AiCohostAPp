@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useId } from 'react';
 import { styles } from './styles';
 
 export interface InputModalProps {
@@ -24,6 +24,11 @@ export const InputModal: React.FC<InputModalProps> = ({
 }) => {
   const [value, setValue] = useState('');
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+
+  // Use useId if available (React 18+), otherwise fallback to random string
+  const uniqueId = useId ? useId() : Math.random().toString(36).substr(2, 9);
+  const titleId = `modal-title-${uniqueId}`;
+  const descId = `modal-desc-${uniqueId}`;
 
   useEffect(() => {
     if (isOpen) {
@@ -90,6 +95,7 @@ export const InputModal: React.FC<InputModalProps> = ({
               value={value}
               onChange={(e) => setValue(e.target.value)}
               placeholder={placeholder}
+              aria-label={title}
               style={styles.modalInput}
               autoFocus
               aria-labelledby={!description ? "modal-title" : undefined}
