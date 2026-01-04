@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
@@ -6,7 +6,7 @@ import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
-import { StatusBarWidget } from './StatusBarWidget';
+import { TranscriptWidget } from './TranscriptWidget';
 import { styles } from './styles';
 
 // Voice options
@@ -38,7 +38,6 @@ const DrSnugglesControlCenter: React.FC = () => {
     const [listeningSensitivity, setListeningSensitivity] = useState('Medium');
     const [messages, setMessages] = useState<any[]>([]);
     const [contextInput, setContextInput] = useState('');
-    const [messageInput, setMessageInput] = useState(''); // NEW: Text chat input
     const [contextHistory, setContextHistory] = useState<any[]>([]);
     const [systemPrompt, setSystemPrompt] = useState(
         "You are Dr. Snuggles. You are helpful, sarcastic, and scientific. Keep answers short."
@@ -82,7 +81,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [showSettings, setShowSettings] = useState(false);
     const [selectedInputDevice, setSelectedInputDevice] = useState('default');
     const [selectedOutputDevice, setSelectedOutputDevice] = useState('default');
-    const [transcriptSearch, setTranscriptSearch] = useState('');
     const [factCheckFilter, setFactCheckFilter] = useState('All');
     const [favoritePresets, setFavoritePresets] = useState(['Wrap up', 'Be brief', 'Change topic', 'More detail']);
     const [voiceStyle, setVoiceStyle] = useState('natural');
@@ -140,7 +138,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [isSavePromptOpen, setIsSavePromptOpen] = useState(false);
     const [promptNameInput, setPromptNameInput] = useState('');
 
-    const transcriptRef = useRef<HTMLDivElement>(null);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
     
     // Refs for timeouts (Merged from HEAD and Local)
@@ -175,19 +172,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             audioPlaybackService.current?.stop();
         };
     }, []);
-
-
-    // Voice options
-    const voices: Record<string, string> = {
-        'Puck': 'Youthful, energetic, slightly mischievous',
-        'Charon': 'Deep, gravelly, authoritative',
-        'Kore': 'Warm, nurturing, wise',
-        'Fenrir': 'Fierce, powerful, commanding',
-        'Aoede': 'Musical, melodic, soothing',
-        'Leda': 'Elegant, refined, sophisticated',
-        'Orus': 'Mysterious, enigmatic, alluring',
-        'Zephyr': 'Light, airy, playful'
-    };
 
     const [brainProfiles, setBrainProfiles] = useState<Record<string, any>>({
         'Standard': { thinking: false, budget: 5000, emotional: true, interrupt: true, sensitivity: 'Medium' },
@@ -410,13 +394,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         selectedOutputDevice
     ]);
 
-    // Auto-scroll transcript
-    useEffect(() => {
-        if (transcriptRef.current) {
-            transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
-        }
-    }, [messages]);
-
     // Keyboard shortcuts
     useEffect(() => {
         const handleKeyPress = (e: KeyboardEvent) => {
@@ -426,11 +403,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         if (contextInput.trim()) {
                             handleSendContext();
                         }
-                        break;
-                    case 'k':
-                        e.preventDefault();
-                        setTranscriptSearch('');
-                        document.querySelector('[data-search]')?.focus();
                         break;
                     case 'm':
                         e.preventDefault();
@@ -550,13 +522,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     // NEW: Text Chat Handler
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!messageInput.trim()) return;
-
+    const handleSendMessage = useCallback((text: string) => {
         // Optimistically add user message to UI
-        const text = messageInput.trim();
-
         const newMessage = {
             id: `msg-${Date.now()}-${Math.random()}`,
             role: 'user',
@@ -567,11 +534,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         setMessages(prev => [...prev, newMessage].slice(-100));
         setMessageCount(prev => prev + 1);
 
-        setMessageInput(''); // Clear input immediately
-
         // Send to backend via IPC
         ipc.send('send-message', text);
-    };
+    }, []);
 
     const handleQuickPreset = (preset) => {
         const presets = {
@@ -625,7 +590,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         });
     };
 
-    const handleClearTranscript = () => {
+    const handleClearTranscript = useCallback(() => {
         setModalConfig({
             isOpen: true,
             title: 'Clear Transcript',
@@ -635,9 +600,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             confirmVariant: 'danger',
             type: 'clearTranscript',
         });
-    };
+    }, []);
 
-    const handleExportTranscript = () => {
+    const handleExportTranscript = useCallback(() => {
         const data = JSON.stringify(messages, null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -646,7 +611,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         a.download = `transcript-${Date.now()}.json`;
         a.click();
         showToast('Transcript exported to file');
-    };
+    }, [messages]);
 
     const handleClearFactChecks = () => {
         setModalConfig({
@@ -751,15 +716,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             return next;
         });
     };
-
-    // Filter messages with defensive null checks to prevent errors when msg.speaker is undefined
-    // Messages may come from STT (with role) or IPC (with speaker), so we check both
-    const filteredMessages = messages.filter(msg =>
-        !transcriptSearch ||
-        (msg.text && msg.text.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
-        (msg.speaker && msg.speaker.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
-        (msg.role && msg.role.toLowerCase().includes(transcriptSearch.toLowerCase()))
-    );
 
     const filteredFactChecks = factChecks.filter(claim =>
         factCheckFilter === 'All' || claim.verdict === factCheckFilter
@@ -869,6 +825,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         {!collapsedSections.has('avatar') && (
                             <AvatarWidget
                                 vadStatus={vadStatus}
+                                collapsed={collapsedSections.has('avatar')}
                                 onStatusAction={handleStatusAction}
                             />
                         )}
@@ -1207,133 +1164,13 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                 </div>
 
                 {/* Center - Transcript */}
-                <div style={styles.centerPanel}>
-                    <div style={styles.sectionHeaderRow}>
-                        <div style={styles.sectionHeader}>💬 TRANSCRIPT</div>
-                        <div style={styles.transcriptTools}>
-                            <input
-                                type="text"
-                                placeholder="Search... (Ctrl+K)"
-                                value={transcriptSearch}
-                                onChange={(e) => setTranscriptSearch(e.target.value)}
-                                style={styles.searchInput}
-                                data-search
-                                aria-label="Search transcript"
-                            />
-                            <button
-                                style={styles.toolBtn}
-                                onClick={handleExportTranscript}
-                                title="Export transcript"
-                                aria-label="Export transcript"
-                            >
-                                📥
-                            </button>
-                            <button
-                                style={styles.toolBtn}
-                                onClick={handleClearTranscript}
-                                title="Clear transcript"
-                                aria-label="Clear transcript"
-                            >
-                                🗑️
-                            </button>
-                        </div>
-                    </div>
-                    <div style={styles.transcript} ref={transcriptRef}>
-                        {messages.length === 0 ? (
-                            <div style={styles.emptyState}>
-                                <div style={styles.emptyStateIcon}>💬</div>
-                                <div style={styles.emptyStateText}>No transcript yet.</div>
-                                <div style={styles.emptyStateSubtext}>Start voice mode or send a message to begin.</div>
-                            </div>
-                        ) : filteredMessages.length === 0 ? (
-                            <div style={styles.emptyState}>
-                                <div style={styles.emptyStateIcon}>🔎</div>
-                                <div style={styles.emptyStateText}>No messages match your search.</div>
-                                <div style={styles.emptyStateSubtext}>Try a different keyword or clear the search.</div>
-                            </div>
-                        ) : (
-                            filteredMessages.map((msg, idx) => {
-                                const isSequence = idx > 0 && filteredMessages[idx - 1].role === msg.role;
-                                return (
-                                    <div
-                                        key={msg.id || idx}
-                                        style={{
-                                            ...styles.transcriptMessage,
-                                            marginTop: isSequence ? '2px' : '20px',
-                                            borderTopLeftRadius: msg.role === 'user' ? '12px' : (isSequence ? '4px' : '12px'),
-                                            borderTopRightRadius: msg.role === 'user' ? (isSequence ? '4px' : '12px') : '12px',
-                                            borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
-                                            borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
-                                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                            maxWidth: '80%',
-                                            background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
-                                            border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
-                                            textAlign: 'left' // Keep text left aligned for readability even in right bubble
-                                        }}
-                                    >
-                                        {!isSequence && (
-                                            <div style={styles.transcriptHeader}>
-                                                <span style={{
-                                                    ...styles.transcriptSpeaker,
-                                                    color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
-                                                }}>
-                                                    {msg.speaker || (msg.role === 'user' ? 'YOU' : 'DR. SNUGGLES')}
-                                                </span>
-                                                <div style={styles.transcriptActions}>
-                                                    <CopyButton text={msg.text} style={styles.copyBtn} />
-                                                    <span style={styles.transcriptTime}>
-                                                        {new Date(msg.timestamp).toLocaleTimeString()}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div style={styles.transcriptText}>{msg.text}</div>
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-                    {/* NEW: Text Input Area */}
-                    <div style={{
-                        padding: '15px',
-                        borderTop: '1px solid #333',
-                        background: '#13131f'
-                    }}>
-                        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                value={messageInput}
-                                onChange={(e) => setMessageInput(e.target.value)}
-                                placeholder="Type a message to Dr. Snuggles..."
-                                style={{
-                                    flex: 1,
-                                    padding: '12px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #444',
-                                    background: '#1a1a2e',
-                                    color: '#fff',
-                                    outline: 'none',
-                                    fontFamily: 'inherit'
-                                }}
-                            />
-                            <button
-                                type="submit"
-                                disabled={!connectionStatus.connected}
-                                style={{
-                                    padding: '0 20px',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    background: connectionStatus.connected ? '#8a2be2' : '#444',
-                                    color: '#fff',
-                                    cursor: connectionStatus.connected ? 'pointer' : 'not-allowed',
-                                    fontWeight: 'bold'
-                                }}
-                            >
-                                SEND
-                            </button>
-                        </form>
-                    </div>
-                </div>
+                <TranscriptWidget
+                    messages={messages}
+                    onSendMessage={handleSendMessage}
+                    onClear={handleClearTranscript}
+                    onExport={handleExportTranscript}
+                    connectionStatus={connectionStatus}
+                />
 
                 {/* Right Sidebar */}
                 <div style={styles.rightSidebar}>
@@ -1770,9 +1607,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Tooltips via title attributes handled natively */}
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 const styleSheet = document.createElement('style');

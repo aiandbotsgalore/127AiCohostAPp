@@ -1,6 +1,12 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { styles } from './styles';
 
+/**
+ * ⚡ Bolt Optimization:
+ * Memoized component to prevent re-renders of the entire transcript list
+ * during high-frequency updates (e.g., VAD status, audio levels) in the parent.
+ */
+
 interface Message {
     id: string;
     role: string;
