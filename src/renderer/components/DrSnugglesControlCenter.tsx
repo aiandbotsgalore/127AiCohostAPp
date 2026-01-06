@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
@@ -6,20 +6,8 @@ import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
-import { StatusBarWidget } from './StatusBarWidget';
 import { styles } from './styles';
-
-// Voice options
-const voices: Record<string, string> = {
-  Puck: 'Youthful, energetic, slightly mischievous',
-  Charon: 'Deep, gravelly, authoritative',
-  Kore: 'Warm, nurturing, wise',
-  Fenrir: 'Fierce, powerful, commanding',
-  Aoede: 'Musical, melodic, soothing',
-  Leda: 'Elegant, refined, sophisticated',
-  Orus: 'Mysterious, enigmatic, alluring',
-  Zephyr: 'Light, airy, playful'
-};
+import { CopyButton } from './CopyButton';
 
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
@@ -416,6 +404,20 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
         }
     }, [messages]);
+
+    // Handle Escape key for Settings Modal
+    useEffect(() => {
+        if (!showSettings) return;
+
+        const handleEsc = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setShowSettings(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleEsc);
+        return () => window.removeEventListener('keydown', handleEsc);
+    }, [showSettings]);
 
     // Keyboard shortcuts
     useEffect(() => {
@@ -1565,10 +1567,16 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Settings Panel Overlay */}
             {showSettings && (
-                <div style={styles.settingsOverlay} onClick={() => setShowSettings(false)}>
+                <div
+                    style={styles.settingsOverlay}
+                    onClick={() => setShowSettings(false)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="settings-title"
+                >
                     <div style={styles.settingsPanel} onClick={(e) => e.stopPropagation()}>
                         <div style={styles.settingsPanelHeader}>
-                            <h2 style={styles.settingsTitle}>⚙️ SETTINGS</h2>
+                            <h2 id="settings-title" style={styles.settingsTitle}>⚙️ SETTINGS</h2>
                             <button
                                 style={styles.settingsCloseBtn}
                                 onClick={() => setShowSettings(false)}
@@ -1770,9 +1778,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Tooltips via title attributes handled natively */}
         </div>
-      </div>
-    </div>
-  );
+    );
 };
 
 const styleSheet = document.createElement('style');
