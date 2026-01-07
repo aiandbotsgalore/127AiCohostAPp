@@ -67,10 +67,11 @@ export const InputModal: React.FC<InputModalProps> = ({
         onClick={(e) => e.stopPropagation()}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="modal-title"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descId : undefined}
       >
         <div style={styles.settingsPanelHeader}>
-          <h2 id="modal-title" style={styles.settingsTitle}>{title}</h2>
+          <h2 id={titleId} style={styles.settingsTitle}>{title}</h2>
           <button style={styles.settingsCloseBtn} onClick={onClose} aria-label="Close modal">
             ✕
           </button>
@@ -78,11 +79,11 @@ export const InputModal: React.FC<InputModalProps> = ({
         <div style={styles.modalContent}>
           {description && (
             placeholder ? (
-              <label htmlFor="modal-input" style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5', display: 'block' }}>
+              <label id={descId} htmlFor="modal-input" style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5', display: 'block' }}>
                 {description}
               </label>
             ) : (
-              <div style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5' }}>
+              <div id={descId} style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5' }}>
                 {description}
               </div>
             )
@@ -98,7 +99,7 @@ export const InputModal: React.FC<InputModalProps> = ({
               aria-label={title}
               style={styles.modalInput}
               autoFocus
-              aria-labelledby={!description ? "modal-title" : undefined}
+              aria-labelledby={!description ? titleId : undefined}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') submit();
                 if (e.key === 'Escape') onClose();
