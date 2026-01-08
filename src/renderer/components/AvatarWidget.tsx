@@ -3,12 +3,18 @@ import { ipc } from '../ipc';
 import { styles } from './styles';
 
 interface AvatarWidgetProps {
-    vadStatus: { isSpeaking: boolean; isListening: boolean };
-    collapsed: boolean;
+    collapsed: boolean; // Note: collapsed is logic handled by parent, but if it is false, this component is mounted.
+                        // Actually parent does: {!collapsed && <AvatarWidget ... />}
+                        // So 'collapsed' prop might not be needed if parent unmounts it.
+                        // But looking at original code: it accepts 'collapsed' prop but parent unmounts it.
+                        // Let's keep the prop interface compatible if needed, or simplify.
+                        // In original code: <AvatarWidget vadStatus={vadStatus} onStatusAction={handleStatusAction} />
+                        // It didn't pass collapsed.
     onStatusAction: (action: string) => void;
 }
 
-export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ vadStatus, collapsed, onStatusAction }) => {
+export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ onStatusAction }) => {
+    const [vadStatus, setVadStatus] = useState({ isSpeaking: false, isListening: false });
     const [blinkState, setBlinkState] = useState(false);
     const [mouthOpen, setMouthOpen] = useState(0);
 
@@ -22,10 +28,26 @@ export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ vadStatus, collapsed
         vadStatusRef.current = vadStatus;
     }, [vadStatus]);
 
+    // IPC Listener for VAD State
+    useEffect(() => {
+        const unsubscribe = ipc.on('genai:vadState', (_event, data) => {
+            setVadStatus(data);
+        });
+        return () => unsubscribe();
+    }, []);
+
     // Audio Level Listener - subscribing here avoids re-rendering the parent component
     useEffect(() => {
         const unsubscribe = ipc.on('audio-level', (_event: any, data: { level: number }) => {
             audioLevelRef.current = data.level;
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // VAD Status Listener - subscribing here avoids re-rendering the parent component
+    useEffect(() => {
+        const unsubscribe = ipc.on('genai:vadState', (_event: any, data: { isSpeaking: boolean; isListening: boolean }) => {
+            setVadStatus(data);
         });
         return () => unsubscribe();
     }, []);
@@ -129,9 +151,7 @@ export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ vadStatus, collapsed
                 cancelAnimationFrame(animationFrameId);
             }
         };
-    }, [collapsed]);
-
-    if (collapsed) return null;
+    }, []);
 
     return (
         <>
