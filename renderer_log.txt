@@ -1,0 +1,9 @@
+
+> snuggles-audio-node@1.0.0 dev:renderer
+> vite
+
+
+  VITE v6.4.1  ready in 398 ms
+
+  ➜  Local:   http://localhost:5173/
+  ➜  Network: use --host to expose
