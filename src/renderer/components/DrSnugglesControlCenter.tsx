@@ -4,6 +4,7 @@ import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
+import { SpeakingTimer } from './SpeakingTimer';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
 import { SpeakingTimer } from './SpeakingTimer';
@@ -98,7 +99,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         description: undefined as string | undefined,
         confirmText: 'Confirm',
         confirmVariant: 'primary' as 'primary' | 'danger',
-        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearTranscript' | 'clearFactChecks',
+        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearTranscript' | 'clearFactChecks' | 'savePrompt',
     });
 
     // Setup console log forwarding to main process for debugging
@@ -136,9 +137,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
 
     // Prompt Saving State
-    const [isSavePromptOpen, setIsSavePromptOpen] = useState(false);
-    const [promptNameInput, setPromptNameInput] = useState('');
-
     const transcriptRef = useRef<HTMLDivElement>(null);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
     
@@ -577,16 +575,15 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     const handleSavePrompt = () => {
-        setPromptNameInput('');
-        setIsSavePromptOpen(true);
-    };
-
-    const confirmSavePrompt = () => {
-        if (promptNameInput.trim()) {
-            setSavedPrompts(prev => [...prev, { name: promptNameInput.trim(), content: systemPrompt }].slice(0, 50)); // Limit to 50 saved prompts
-            setIsSavePromptOpen(false);
-            showToast(`Prompt "${promptNameInput.trim()}" saved`);
-        }
+        setModalConfig({
+            isOpen: true,
+            title: 'Save System Prompt',
+            placeholder: 'e.g., Physics Lecturer Mode',
+            description: undefined,
+            confirmText: 'Save Template',
+            confirmVariant: 'primary',
+            type: 'savePrompt',
+        });
     };
 
     const handleLoadPrompt = (prompt) => {
@@ -719,6 +716,11 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             setFactChecks([]);
             setPinnedClaims(new Set());
             showToast('Fact checks cleared');
+        } else if (modalConfig.type === 'savePrompt') {
+            if (value.trim()) {
+                setSavedPrompts(prev => [...prev, { name: value.trim(), content: systemPrompt }].slice(0, 50));
+                showToast(`Prompt "${value.trim()}" saved`);
+            }
         }
 
         setModalConfig(prev => ({ ...prev, isOpen: false }));
@@ -1659,75 +1661,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
 
 
-            {/* Save Prompt Dialog */}
-            {isSavePromptOpen && (
-                <div style={styles.settingsOverlay} onClick={() => setIsSavePromptOpen(false)}>
-                    <div style={{ ...styles.settingsPanel, height: 'auto', maxHeight: 'none' }} onClick={(e) => e.stopPropagation()}>
-                        <div style={styles.settingsPanelHeader}>
-                            <h2 style={styles.settingsTitle}>💾 SAVE SYSTEM PROMPT</h2>
-                            <button
-                                style={styles.settingsCloseBtn}
-                                onClick={() => setIsSavePromptOpen(false)}
-                            >
-                                ✕
-                            </button>
-                        </div>
-                        <div style={{ padding: '20px', display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                            <div>
-                                <label style={{ display: 'block', marginBottom: '8px', fontSize: '12px', color: '#ccc' }}>Template Name:</label>
-                                <input
-                                    type="text"
-                                    value={promptNameInput}
-                                    onChange={(e) => setPromptNameInput(e.target.value)}
-                                    placeholder="e.g., Physics Lecturer Mode"
-                                    style={{
-                                        width: '100%',
-                                        padding: '10px',
-                                        backgroundColor: 'rgba(0,0,0,0.3)',
-                                        border: '1px solid rgba(138, 43, 226, 0.3)',
-                                        borderRadius: '6px',
-                                        color: '#fff',
-                                        fontSize: '14px',
-                                        outline: 'none'
-                                    }}
-                                    autoFocus
-                                    onKeyDown={(e) => e.key === 'Enter' && confirmSavePrompt()}
-                                />
-                            </div>
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
-                                <button
-                                    onClick={() => setIsSavePromptOpen(false)}
-                                    style={{
-                                        padding: '8px 16px',
-                                        backgroundColor: 'transparent',
-                                        border: '1px solid #666',
-                                        color: '#ccc',
-                                        borderRadius: '6px',
-                                        cursor: 'pointer'
-                                    }}
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={confirmSavePrompt}
-                                    style={{
-                                        padding: '8px 16px',
-                                        backgroundColor: '#8a2be2',
-                                        border: 'none',
-                                        color: '#fff',
-                                        borderRadius: '6px',
-                                        cursor: 'pointer',
-                                        fontWeight: 'bold'
-                                    }}
-                                >
-                                    Save Template
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* Toast Notification */}
             {toast && (
                 <div style={{
@@ -1754,7 +1687,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Tooltips via title attributes handled natively */}
         </div>
-  );
+    );
 };
 
 const styleSheet = document.createElement('style');

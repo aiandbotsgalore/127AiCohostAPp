@@ -44,6 +44,14 @@ export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ onStatusAction }) =>
         return () => unsubscribe();
     }, []);
 
+    // VAD Status Listener - subscribing here avoids re-rendering the parent component
+    useEffect(() => {
+        const unsubscribe = ipc.on('genai:vadState', (_event: any, data: { isSpeaking: boolean; isListening: boolean }) => {
+            setVadStatus(data);
+        });
+        return () => unsubscribe();
+    }, []);
+
     // Eye blink animation
     useEffect(() => {
         const blinkInterval = setInterval(() => {
