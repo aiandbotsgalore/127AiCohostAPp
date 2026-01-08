@@ -7,6 +7,7 @@ import { AvatarWidget } from './AvatarWidget';
 import { SpeakingTimer } from './SpeakingTimer';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
+import { CopyButton } from './CopyButton';
 import { styles } from './styles';
 import { CopyButton } from './CopyButton';
 
@@ -68,6 +69,21 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [factChecks, setFactChecks] = useState<any[]>([]);
     const [pinnedClaims, setPinnedClaims] = useState(new Set());
     const [showSettings, setShowSettings] = useState(false);
+
+    // Close settings on Escape
+    useEffect(() => {
+        if (!showSettings) return;
+
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setShowSettings(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [showSettings]);
+
     const [selectedInputDevice, setSelectedInputDevice] = useState('default');
     const [selectedOutputDevice, setSelectedOutputDevice] = useState('default');
     const [transcriptSearch, setTranscriptSearch] = useState('');
