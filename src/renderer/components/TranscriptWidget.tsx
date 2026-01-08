@@ -1,10 +1,12 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { styles } from './styles';
+import { ipc } from '../ipc';
+import { InputModal } from './InputModal';
 
 /**
  * ⚡ Bolt Optimization:
- * Memoized component to prevent re-renders of the entire transcript list
- * during high-frequency updates (e.g., VAD status, audio levels) in the parent.
+ * Now a "Smart" component that manages its own messages state and IPC subscriptions.
+ * This prevents the massive DrSnugglesControlCenter from re-rendering on every token (streaming).
  */
 
 interface Message {
@@ -16,12 +18,7 @@ interface Message {
 }
 
 interface TranscriptWidgetProps {
-    messages: Message[];
-    onSendMessage: (text: string) => void;
-    onClear: () => void;
-    onExport: () => void;
     connectionStatus: { connected: boolean };
-    // We can accept styles or import them. Since they are imported in parent, we can import them here too.
 }
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
@@ -59,15 +56,20 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
 };
 
 export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
-    messages,
-    onSendMessage,
-    onClear,
-    onExport,
     connectionStatus
 }) => {
+    const [messages, setMessages] = useState<Message[]>([]);
     const [transcriptSearch, setTranscriptSearch] = useState('');
     const [messageInput, setMessageInput] = useState('');
     const transcriptRef = useRef<HTMLDivElement>(null);
+    const [modalConfig, setModalConfig] = useState({
+        isOpen: false,
+        title: '',
+        description: undefined as string | undefined,
+        confirmText: 'Confirm',
+        confirmVariant: 'primary' as 'primary' | 'danger',
+        type: '' as '' | 'clearTranscript',
+    });
 
     // Auto-scroll transcript
     useEffect(() => {
@@ -75,6 +77,51 @@ export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
             transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
         }
     }, [messages]);
+
+    // IPC Listeners for Messages
+    useEffect(() => {
+        const unsubscribers: (() => void)[] = [];
+
+        unsubscribers.push(ipc.on('message-received', (event, message) => {
+            void event;
+            setMessages(prev => {
+                const lastMsg = prev[prev.length - 1];
+                // Check if last message is from same role and recent (within 5 seconds)
+                if (lastMsg && lastMsg.role === message.role && (Date.now() - lastMsg.timestamp < 5000)) {
+                    const newHistory = [...prev];
+                    newHistory[newHistory.length - 1] = {
+                        ...lastMsg,
+                        text: lastMsg.text + message.text
+                    };
+                    return newHistory;
+                }
+                return [...prev, message].slice(-100);
+            });
+        }));
+
+        // Listen for transcript events from STT (same as before, but managed here)
+        const handleTranscript = (event: any) => {
+            const { text, role } = event.detail;
+            console.log(`[TranscriptWidget] Transcript received (${role}):`, text);
+
+            const newMessage = {
+                id: `msg-${Date.now()}-${Math.random()}`,
+                role: role,
+                text: text,
+                timestamp: Date.now()
+            };
+
+            setMessages(prev => [...prev, newMessage].slice(-100));
+        };
+
+        window.addEventListener('snugglesTranscript', handleTranscript);
+
+        return () => {
+            unsubscribers.forEach(unsub => unsub && unsub());
+            window.removeEventListener('snugglesTranscript', handleTranscript);
+        };
+    }, []);
+
 
     // Keyboard shortcuts (Ctrl+K for search)
     useEffect(() => {
@@ -93,7 +140,7 @@ export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
         return () => window.removeEventListener('keydown', handleKeyPress);
     }, []);
 
-    // Filter messages with defensive null checks to prevent errors when msg.speaker is undefined
+    // Filter messages
     const filteredMessages = useMemo(() => messages.filter(msg =>
         !transcriptSearch ||
         (msg.text && msg.text.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
@@ -101,11 +148,61 @@ export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
         (msg.role && msg.role.toLowerCase().includes(transcriptSearch.toLowerCase()))
     ), [messages, transcriptSearch]);
 
+    const handleSendMessage = (text: string) => {
+        // Optimistically add user message to UI
+        const newMessage = {
+            id: `msg-${Date.now()}-${Math.random()}`,
+            role: 'user',
+            text: text,
+            timestamp: Date.now()
+        };
+
+        setMessages(prev => [...prev, newMessage].slice(-100));
+
+        // Dispatch event for MessageCounterWidget
+        window.dispatchEvent(new CustomEvent('snuggles-message-sent'));
+
+        // Send to backend via IPC
+        ipc.send('send-message', text);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (!messageInput.trim()) return;
-        onSendMessage(messageInput.trim());
+        handleSendMessage(messageInput.trim());
         setMessageInput('');
+    };
+
+    const handleClearTranscriptRequest = useCallback(() => {
+        setModalConfig({
+            isOpen: true,
+            title: 'Clear Transcript',
+            description: 'Are you sure you want to clear all messages? This action cannot be undone.',
+            confirmText: 'Clear Messages',
+            confirmVariant: 'danger',
+            type: 'clearTranscript',
+        });
+    }, []);
+
+    const handleExportTranscript = useCallback(() => {
+        const data = JSON.stringify(messages, null, 2);
+        const blob = new Blob([data], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `transcript-${Date.now()}.json`;
+        a.click();
+        // We can't use showToast here easily without props/context.
+        // We could emit an event or just console log.
+        // Or assume user sees the download.
+        console.log('Transcript exported');
+    }, [messages]);
+
+    const handleModalSubmit = () => {
+        if (modalConfig.type === 'clearTranscript') {
+            setMessages([]);
+        }
+        setModalConfig(prev => ({ ...prev, isOpen: false }));
     };
 
     return (
@@ -124,7 +221,7 @@ export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
                     />
                     <button
                         style={styles.toolBtn}
-                        onClick={onExport}
+                        onClick={handleExportTranscript}
                         title="Export transcript"
                         aria-label="Export transcript"
                     >
@@ -132,7 +229,7 @@ export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
                     </button>
                     <button
                         style={styles.toolBtn}
-                        onClick={onClear}
+                        onClick={handleClearTranscriptRequest}
                         title="Clear transcript"
                         aria-label="Clear transcript"
                     >
@@ -170,7 +267,7 @@ export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
                                     maxWidth: '80%',
                                     background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
                                     border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
-                                    textAlign: 'left' // Keep text left aligned for readability even in right bubble
+                                    textAlign: 'left'
                                 }}
                             >
                                 {!isSequence && (
@@ -236,6 +333,17 @@ export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
                     </button>
                 </form>
             </div>
+
+            <InputModal
+                isOpen={modalConfig.isOpen}
+                title={modalConfig.title}
+                placeholder={undefined}
+                description={modalConfig.description}
+                confirmText={modalConfig.confirmText}
+                confirmVariant={modalConfig.confirmVariant}
+                onClose={() => setModalConfig(prev => ({ ...prev, isOpen: false }))}
+                onSubmit={handleModalSubmit}
+            />
         </div>
     );
 });

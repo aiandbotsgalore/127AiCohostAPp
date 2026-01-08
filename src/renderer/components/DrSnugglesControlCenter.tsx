@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
@@ -6,10 +6,10 @@ import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
 import { SpeakingTimer } from './SpeakingTimer';
 import { StatusBarWidget } from './StatusBarWidget';
+import { MessageCounterWidget } from './MessageCounterWidget';
 import { InputModal } from './InputModal';
 import { TranscriptWidget } from './TranscriptWidget';
 import { styles } from './styles';
-import { CopyButton } from './CopyButton';
 
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
@@ -25,7 +25,6 @@ const DrSnugglesControlCenter: React.FC = () => {
     const [emotionalRange, setEmotionalRange] = useState(true);
     const [canInterrupt, setCanInterrupt] = useState(true);
     const [listeningSensitivity, setListeningSensitivity] = useState('Medium');
-    const [messages, setMessages] = useState<any[]>([]);
     const [contextInput, setContextInput] = useState('');
     const [contextHistory, setContextHistory] = useState<any[]>([]);
     const [systemPrompt, setSystemPrompt] = useState(
@@ -92,7 +91,19 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [voiceTone, setVoiceTone] = useState('conversational');
     const [voiceAccent, setVoiceAccent] = useState('neutral');
     const [brainProfile, setBrainProfile] = useState('Standard');
-    const [messageCount, setMessageCount] = useState(0);
+
+    // Voice Descriptions
+    const voices: Record<string, string> = {
+        'Charon': 'Deep, resonant, authoritative (Gemini Default)',
+        'Puck': 'Playful, mischievous, energetic',
+        'Kore': 'Calm, soothing, nature-focused',
+        'Fenrir': 'Rough, aggressive, intense',
+        'Aoede': 'Melodic, artistic, expressive',
+        'Leda': 'Soft, nurturing, gentle',
+        'Orus': 'Sharp, analytical, precise',
+        'Zephyr': 'Breezy, quick, light'
+    };
+
     const [modalConfig, setModalConfig] = useState({
         isOpen: false,
         title: '',
@@ -100,7 +111,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         description: undefined as string | undefined,
         confirmText: 'Confirm',
         confirmVariant: 'primary' as 'primary' | 'danger',
-        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearTranscript' | 'clearFactChecks' | 'savePrompt',
+        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearFactChecks' | 'savePrompt',
     });
 
     // Setup console log forwarding to main process for debugging
@@ -203,28 +214,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         unsubscribers.push(ipc.on('stream-status', (event, data) => {
             void event;
             setIsLive(data.isLive);
-        }));
-
-        unsubscribers.push(ipc.on('message-received', (event, message) => {
-            void event;
-            setMessages(prev => {
-                const lastMsg = prev[prev.length - 1];
-                // Check if last message is from same role and recent (within 5 seconds)
-                // If so, append text instead of new bubble
-                // Added 5s timeout check to prevent merging messages from different turns that just happened to be sequential
-                if (lastMsg && lastMsg.role === message.role && (Date.now() - lastMsg.timestamp < 5000)) {
-                    // Create new array with replaced last item
-                    const newHistory = [...prev];
-                    newHistory[newHistory.length - 1] = {
-                        ...lastMsg,
-                        text: lastMsg.text + message.text
-                    };
-                    return newHistory;
-                }
-                // Otherwise new message
-                return [...prev, message].slice(-100);
-            });
-            setMessageCount(prev => prev + 1);
         }));
 
         unsubscribers.push(ipc.on('fact-check:claim', (event, claim) => {
@@ -407,26 +396,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         return () => window.removeEventListener('keydown', handleKeyPress);
     }, [contextInput]);
 
-    // Listen for transcript events from STT
-    useEffect(() => {
-        const handleTranscript = (event: any) => {
-            const { text, role } = event.detail;
-            console.log(`[GUI] Transcript received (${role}):`, text);
-
-            const newMessage = {
-                id: `msg-${Date.now()}-${Math.random()}`,
-                role: role,
-                text: text,
-                timestamp: Date.now()
-            };
-
-            setMessages(prev => [...prev, newMessage].slice(-100)); // Limit to 100 messages
-        };
-
-        window.addEventListener('snugglesTranscript', handleTranscript);
-        return () => window.removeEventListener('snugglesTranscript', handleTranscript);
-    }, []);
-
     // Handlers
     const handleTestAudio = () => {
         console.log('[GUI] Testing Audio Playback...');
@@ -506,23 +475,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         }
     };
 
-    // NEW: Text Chat Handler
-    const handleSendMessage = useCallback((text: string) => {
-        // Optimistically add user message to UI
-        const newMessage = {
-            id: `msg-${Date.now()}-${Math.random()}`,
-            role: 'user',
-            text: text,
-            timestamp: Date.now()
-        };
-
-        setMessages(prev => [...prev, newMessage].slice(-100));
-        setMessageCount(prev => prev + 1);
-
-        // Send to backend via IPC
-        ipc.send('send-message', text);
-    }, []);
-
     const handleQuickPreset = (preset) => {
         const presets = {
             'Wrap up': 'Please wrap up this topic and move on.',
@@ -573,29 +525,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             return next;
         });
     };
-
-    const handleClearTranscript = useCallback(() => {
-        setModalConfig({
-            isOpen: true,
-            title: 'Clear Transcript',
-            placeholder: undefined,
-            description: 'Are you sure you want to clear all messages? This action cannot be undone.',
-            confirmText: 'Clear Messages',
-            confirmVariant: 'danger',
-            type: 'clearTranscript',
-        });
-    }, []);
-
-    const handleExportTranscript = useCallback(() => {
-        const data = JSON.stringify(messages, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `transcript-${Date.now()}.json`;
-        a.click();
-        showToast('Transcript exported to file');
-    }, [messages]);
 
     const handleClearFactChecks = () => {
         setModalConfig({
@@ -677,9 +606,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             setBrainProfile(value);
             setBrainProfiles(prev => ({ ...prev, [value]: brainProfiles[value] }));
             showToast(`Profile "${value}" saved`);
-        } else if (modalConfig.type === 'clearTranscript') {
-            setMessages([]);
-            showToast('Transcript cleared');
         } else if (modalConfig.type === 'clearFactChecks') {
             setFactChecks([]);
             setPinnedClaims(new Set());
@@ -1128,7 +1054,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <div style={styles.analytics}>
                                 <div style={styles.analyticsRow}>
                                     <span>Messages:</span>
-                                    <span style={styles.analyticsValue}>{messageCount}</span>
+                                    <MessageCounterWidget />
                                 </div>
                                 <div style={styles.analyticsRow}>
                                     <span>Speaking Time:</span>
@@ -1153,10 +1079,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
                 {/* Center - Transcript */}
                 <TranscriptWidget
-                    messages={messages}
-                    onSendMessage={handleSendMessage}
-                    onClear={handleClearTranscript}
-                    onExport={handleExportTranscript}
                     connectionStatus={connectionStatus}
                 />
 
