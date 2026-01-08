@@ -3,11 +3,17 @@ import { ipc } from '../ipc';
 import { styles } from './styles';
 
 interface AvatarWidgetProps {
-    collapsed: boolean;
+    collapsed: boolean; // Note: collapsed is logic handled by parent, but if it is false, this component is mounted.
+                        // Actually parent does: {!collapsed && <AvatarWidget ... />}
+                        // So 'collapsed' prop might not be needed if parent unmounts it.
+                        // But looking at original code: it accepts 'collapsed' prop but parent unmounts it.
+                        // Let's keep the prop interface compatible if needed, or simplify.
+                        // In original code: <AvatarWidget vadStatus={vadStatus} onStatusAction={handleStatusAction} />
+                        // It didn't pass collapsed.
     onStatusAction: (action: string) => void;
 }
 
-export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ collapsed, onStatusAction }) => {
+export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ onStatusAction }) => {
     const [vadStatus, setVadStatus] = useState({ isSpeaking: false, isListening: false });
     const [blinkState, setBlinkState] = useState(false);
     const [mouthOpen, setMouthOpen] = useState(0);
@@ -21,6 +27,14 @@ export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ collapsed, onStatusA
     useEffect(() => {
         vadStatusRef.current = vadStatus;
     }, [vadStatus]);
+
+    // IPC Listener for VAD State
+    useEffect(() => {
+        const unsubscribe = ipc.on('genai:vadState', (_event, data) => {
+            setVadStatus(data);
+        });
+        return () => unsubscribe();
+    }, []);
 
     // Audio Level Listener - subscribing here avoids re-rendering the parent component
     useEffect(() => {
@@ -137,9 +151,7 @@ export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ collapsed, onStatusA
                 cancelAnimationFrame(animationFrameId);
             }
         };
-    }, [collapsed]);
-
-    if (collapsed) return null;
+    }, []);
 
     return (
         <>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
@@ -7,6 +7,8 @@ import { AvatarWidget } from './AvatarWidget';
 import { SpeakingTimer } from './SpeakingTimer';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
+import { SpeakingTimer } from './SpeakingTimer';
+import { CopyButton } from './CopyButton';
 import { styles } from './styles';
 
 // Voice options
