@@ -3,12 +3,12 @@ import { ipc } from '../ipc';
 import { styles } from './styles';
 
 interface AvatarWidgetProps {
-    vadStatus: { isSpeaking: boolean; isListening: boolean };
     collapsed: boolean;
     onStatusAction: (action: string) => void;
 }
 
-export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ vadStatus, collapsed, onStatusAction }) => {
+export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ collapsed, onStatusAction }) => {
+    const [vadStatus, setVadStatus] = useState({ isSpeaking: false, isListening: false });
     const [blinkState, setBlinkState] = useState(false);
     const [mouthOpen, setMouthOpen] = useState(0);
 
@@ -26,6 +26,14 @@ export const AvatarWidget: React.FC<AvatarWidgetProps> = ({ vadStatus, collapsed
     useEffect(() => {
         const unsubscribe = ipc.on('audio-level', (_event: any, data: { level: number }) => {
             audioLevelRef.current = data.level;
+        });
+        return () => unsubscribe();
+    }, []);
+
+    // VAD Status Listener - subscribing here avoids re-rendering the parent component
+    useEffect(() => {
+        const unsubscribe = ipc.on('genai:vadState', (_event: any, data: { isSpeaking: boolean; isListening: boolean }) => {
+            setVadStatus(data);
         });
         return () => unsubscribe();
     }, []);

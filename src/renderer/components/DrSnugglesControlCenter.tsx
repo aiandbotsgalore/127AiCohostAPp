@@ -4,9 +4,9 @@ import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
+import { SpeakingTimer } from './SpeakingTimer';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
-import { StatusBarWidget } from './StatusBarWidget';
 import { styles } from './styles';
 
 // Voice options
@@ -30,7 +30,6 @@ const DrSnugglesControlCenter: React.FC = () => {
     const [outputVolume, setOutputVolume] = useState(80);
     const [isMuted, setIsMuted] = useState(false);
     const [micMuted, setMicMuted] = useState(false);
-    const [vadStatus, setVadStatus] = useState({ isSpeaking: false, isListening: false });
     const [thinkingMode, setThinkingMode] = useState(false);
     const [thinkingBudget, setThinkingBudget] = useState(5000);
     const [emotionalRange, setEmotionalRange] = useState(true);
@@ -91,7 +90,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [voiceAccent, setVoiceAccent] = useState('neutral');
     const [brainProfile, setBrainProfile] = useState('Standard');
     const [messageCount, setMessageCount] = useState(0);
-    const [speakingTime, setSpeakingTime] = useState(0);
     const [modalConfig, setModalConfig] = useState({
         isOpen: false,
         title: '',
@@ -99,7 +97,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         description: undefined as string | undefined,
         confirmText: 'Confirm',
         confirmVariant: 'primary' as 'primary' | 'danger',
-        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearTranscript' | 'clearFactChecks',
+        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearTranscript' | 'clearFactChecks' | 'savePrompt',
     });
 
     // Setup console log forwarding to main process for debugging
@@ -136,19 +134,13 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [collapsedSections, setCollapsedSections] = useState(new Set());
     const [toast, setToast] = useState<{ message: string; type: 'error' | 'success' } | null>(null);
 
+    // Prompt Saving State
     const transcriptRef = useRef<HTMLDivElement>(null);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
     
     // Refs for timeouts (Merged from HEAD and Local)
     const toastTimeout = useRef<NodeJS.Timeout | null>(null);
     const errorToastTimeout = useRef<NodeJS.Timeout | null>(null);
-
-    // Refs for animation loop to avoid re-running effect on high-frequency updates
-    const vadStatusRef = useRef(vadStatus);
-
-    useEffect(() => {
-        vadStatusRef.current = vadStatus;
-    }, [vadStatus]);
 
     const audioCaptureService = useRef<AudioCaptureService | null>(null);
     const audioPlaybackService = useRef<AudioPlaybackService | null>(null);
@@ -222,14 +214,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         unsubscribers.push(ipc.on('stream-status', (event, data) => {
             void event;
             setIsLive(data.isLive);
-        }));
-
-        unsubscribers.push(ipc.on('genai:vadState', (event, data) => {
-            void event;
-            setVadStatus(data);
-            if (data.isSpeaking) {
-                setSpeakingTime(prev => prev + 0.8);
-            }
         }));
 
         unsubscribers.push(ipc.on('message-received', (event, message) => {
@@ -593,7 +577,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             isOpen: true,
             title: 'Save System Prompt',
             placeholder: 'e.g., Physics Lecturer Mode',
-            description: 'Template Name:',
+            description: undefined,
             confirmText: 'Save Template',
             confirmVariant: 'primary',
             type: 'savePrompt',
@@ -731,8 +715,10 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             setPinnedClaims(new Set());
             showToast('Fact checks cleared');
         } else if (modalConfig.type === 'savePrompt') {
-            setSavedPrompts(prev => [...prev, { name: value, content: systemPrompt }].slice(0, 50));
-            showToast(`Prompt "${value}" saved`);
+            if (value.trim()) {
+                setSavedPrompts(prev => [...prev, { name: value.trim(), content: systemPrompt }].slice(0, 50));
+                showToast(`Prompt "${value.trim()}" saved`);
+            }
         }
 
         setModalConfig(prev => ({ ...prev, isOpen: false }));
@@ -866,7 +852,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         </div>
                         {!collapsedSections.has('avatar') && (
                             <AvatarWidget
-                                vadStatus={vadStatus}
+                                collapsed={false}
                                 onStatusAction={handleStatusAction}
                             />
                         )}
@@ -1185,7 +1171,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                 </div>
                                 <div style={styles.analyticsRow}>
                                     <span>Speaking Time:</span>
-                                    <span style={styles.analyticsValue}>{Math.floor(speakingTime)}s</span>
+                                    <SpeakingTimer />
                                 </div>
                                 <div style={styles.analyticsRow}>
                                     <span>Fact Checks:</span>
@@ -1673,7 +1659,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
 
 
-
             {/* Toast Notification */}
             {toast && (
                 <div style={{
@@ -1700,7 +1685,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Tooltips via title attributes handled natively */}
         </div>
-  );
+    );
 };
 
 const styleSheet = document.createElement('style');
