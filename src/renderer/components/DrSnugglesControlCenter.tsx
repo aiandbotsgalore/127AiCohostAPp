@@ -4,6 +4,7 @@ import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
+import { SpeakingTimer } from './SpeakingTimer';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
 import { styles } from './styles';
@@ -29,7 +30,6 @@ const DrSnugglesControlCenter: React.FC = () => {
     const [outputVolume, setOutputVolume] = useState(80);
     const [isMuted, setIsMuted] = useState(false);
     const [micMuted, setMicMuted] = useState(false);
-    const [vadStatus, setVadStatus] = useState({ isSpeaking: false, isListening: false });
     const [thinkingMode, setThinkingMode] = useState(false);
     const [thinkingBudget, setThinkingBudget] = useState(5000);
     const [emotionalRange, setEmotionalRange] = useState(true);
@@ -90,7 +90,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [voiceAccent, setVoiceAccent] = useState('neutral');
     const [brainProfile, setBrainProfile] = useState('Standard');
     const [messageCount, setMessageCount] = useState(0);
-    const [speakingTime, setSpeakingTime] = useState(0);
     const [modalConfig, setModalConfig] = useState({
         isOpen: false,
         title: '',
@@ -142,13 +141,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     // Refs for timeouts (Merged from HEAD and Local)
     const toastTimeout = useRef<NodeJS.Timeout | null>(null);
     const errorToastTimeout = useRef<NodeJS.Timeout | null>(null);
-
-    // Refs for animation loop to avoid re-running effect on high-frequency updates
-    const vadStatusRef = useRef(vadStatus);
-
-    useEffect(() => {
-        vadStatusRef.current = vadStatus;
-    }, [vadStatus]);
 
     const audioCaptureService = useRef<AudioCaptureService | null>(null);
     const audioPlaybackService = useRef<AudioPlaybackService | null>(null);
@@ -222,14 +214,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         unsubscribers.push(ipc.on('stream-status', (event, data) => {
             void event;
             setIsLive(data.isLive);
-        }));
-
-        unsubscribers.push(ipc.on('genai:vadState', (event, data) => {
-            void event;
-            setVadStatus(data);
-            if (data.isSpeaking) {
-                setSpeakingTime(prev => prev + 0.8);
-            }
         }));
 
         unsubscribers.push(ipc.on('message-received', (event, message) => {
@@ -868,7 +852,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         </div>
                         {!collapsedSections.has('avatar') && (
                             <AvatarWidget
-                                vadStatus={vadStatus}
+                                collapsed={false}
                                 onStatusAction={handleStatusAction}
                             />
                         )}
@@ -1187,7 +1171,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                 </div>
                                 <div style={styles.analyticsRow}>
                                     <span>Speaking Time:</span>
-                                    <span style={styles.analyticsValue}>{Math.floor(speakingTime)}s</span>
+                                    <SpeakingTimer />
                                 </div>
                                 <div style={styles.analyticsRow}>
                                     <span>Fact Checks:</span>
