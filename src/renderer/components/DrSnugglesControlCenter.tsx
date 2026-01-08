@@ -1,25 +1,15 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { AvatarWidget } from './AvatarWidget';
+import { SpeakingTimer } from './SpeakingTimer';
 import { StatusBarWidget } from './StatusBarWidget';
 import { InputModal } from './InputModal';
 import { TranscriptWidget } from './TranscriptWidget';
 import { styles } from './styles';
-
-// Voice options
-const voices: Record<string, string> = {
-  Puck: 'Youthful, energetic, slightly mischievous',
-  Charon: 'Deep, gravelly, authoritative',
-  Kore: 'Warm, nurturing, wise',
-  Fenrir: 'Fierce, powerful, commanding',
-  Aoede: 'Musical, melodic, soothing',
-  Leda: 'Elegant, refined, sophisticated',
-  Orus: 'Mysterious, enigmatic, alluring',
-  Zephyr: 'Light, airy, playful'
-};
+import { CopyButton } from './CopyButton';
 
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
@@ -30,7 +20,6 @@ const DrSnugglesControlCenter: React.FC = () => {
     const [outputVolume, setOutputVolume] = useState(80);
     const [isMuted, setIsMuted] = useState(false);
     const [micMuted, setMicMuted] = useState(false);
-    const [vadStatus, setVadStatus] = useState({ isSpeaking: false, isListening: false });
     const [thinkingMode, setThinkingMode] = useState(false);
     const [thinkingBudget, setThinkingBudget] = useState(5000);
     const [emotionalRange, setEmotionalRange] = useState(true);
@@ -79,6 +68,21 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [factChecks, setFactChecks] = useState<any[]>([]);
     const [pinnedClaims, setPinnedClaims] = useState(new Set());
     const [showSettings, setShowSettings] = useState(false);
+
+    // Close settings on Escape
+    useEffect(() => {
+        if (!showSettings) return;
+
+        const handleEscape = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setShowSettings(false);
+            }
+        };
+
+        window.addEventListener('keydown', handleEscape);
+        return () => window.removeEventListener('keydown', handleEscape);
+    }, [showSettings]);
+
     const [selectedInputDevice, setSelectedInputDevice] = useState('default');
     const [selectedOutputDevice, setSelectedOutputDevice] = useState('default');
     const [factCheckFilter, setFactCheckFilter] = useState('All');
@@ -89,7 +93,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [voiceAccent, setVoiceAccent] = useState('neutral');
     const [brainProfile, setBrainProfile] = useState('Standard');
     const [messageCount, setMessageCount] = useState(0);
-    const [speakingTime, setSpeakingTime] = useState(0);
     const [modalConfig, setModalConfig] = useState({
         isOpen: false,
         title: '',
@@ -140,13 +143,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     // Refs for timeouts (Merged from HEAD and Local)
     const toastTimeout = useRef<NodeJS.Timeout | null>(null);
     const errorToastTimeout = useRef<NodeJS.Timeout | null>(null);
-
-    // Refs for animation loop to avoid re-running effect on high-frequency updates
-    const vadStatusRef = useRef(vadStatus);
-
-    useEffect(() => {
-        vadStatusRef.current = vadStatus;
-    }, [vadStatus]);
 
     const audioCaptureService = useRef<AudioCaptureService | null>(null);
     const audioPlaybackService = useRef<AudioPlaybackService | null>(null);
@@ -220,14 +216,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         unsubscribers.push(ipc.on('stream-status', (event, data) => {
             void event;
             setIsLive(data.isLive);
-        }));
-
-        unsubscribers.push(ipc.on('genai:vadState', (event, data) => {
-            void event;
-            setVadStatus(data);
-            if (data.isSpeaking) {
-                setSpeakingTime(prev => prev + 0.8);
-            }
         }));
 
         unsubscribers.push(ipc.on('message-received', (event, message) => {
@@ -838,7 +826,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         </div>
                         {!collapsedSections.has('avatar') && (
                             <AvatarWidget
-                                vadStatus={vadStatus}
+                                collapsed={false}
                                 onStatusAction={handleStatusAction}
                             />
                         )}
@@ -1157,7 +1145,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                 </div>
                                 <div style={styles.analyticsRow}>
                                     <span>Speaking Time:</span>
-                                    <span style={styles.analyticsValue}>{Math.floor(speakingTime)}s</span>
+                                    <SpeakingTimer />
                                 </div>
                                 <div style={styles.analyticsRow}>
                                     <span>Fact Checks:</span>
@@ -1414,10 +1402,16 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Settings Panel Overlay */}
             {showSettings && (
-                <div style={styles.settingsOverlay} onClick={() => setShowSettings(false)}>
+                <div
+                    style={styles.settingsOverlay}
+                    onClick={() => setShowSettings(false)}
+                    role="dialog"
+                    aria-modal="true"
+                    aria-labelledby="settings-title"
+                >
                     <div style={styles.settingsPanel} onClick={(e) => e.stopPropagation()}>
                         <div style={styles.settingsPanelHeader}>
-                            <h2 style={styles.settingsTitle}>⚙️ SETTINGS</h2>
+                            <h2 id="settings-title" style={styles.settingsTitle}>⚙️ SETTINGS</h2>
                             <button
                                 style={styles.settingsCloseBtn}
                                 onClick={() => setShowSettings(false)}
