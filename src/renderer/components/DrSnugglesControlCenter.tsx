@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
@@ -165,19 +165,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             audioPlaybackService.current?.stop();
         };
     }, []);
-
-
-    // Voice options
-    const voices: Record<string, string> = {
-        'Puck': 'Youthful, energetic, slightly mischievous',
-        'Charon': 'Deep, gravelly, authoritative',
-        'Kore': 'Warm, nurturing, wise',
-        'Fenrir': 'Fierce, powerful, commanding',
-        'Aoede': 'Musical, melodic, soothing',
-        'Leda': 'Elegant, refined, sophisticated',
-        'Orus': 'Mysterious, enigmatic, alluring',
-        'Zephyr': 'Light, airy, playful'
-    };
 
     const [brainProfiles, setBrainProfiles] = useState<Record<string, any>>({
         'Standard': { thinking: false, budget: 5000, emotional: true, interrupt: true, sensitivity: 'Medium' },
@@ -520,7 +507,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     // NEW: Text Chat Handler
-    const handleSendMessageText = async (text: string) => {
+    const handleSendMessage = useCallback((text: string) => {
         // Optimistically add user message to UI
         const newMessage = {
             id: `msg-${Date.now()}-${Math.random()}`,
@@ -534,7 +521,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
         // Send to backend via IPC
         ipc.send('send-message', text);
-    };
+    }, []);
 
     const handleQuickPreset = (preset) => {
         const presets = {
@@ -587,7 +574,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         });
     };
 
-    const handleClearTranscript = () => {
+    const handleClearTranscript = useCallback(() => {
         setModalConfig({
             isOpen: true,
             title: 'Clear Transcript',
@@ -597,9 +584,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             confirmVariant: 'danger',
             type: 'clearTranscript',
         });
-    };
+    }, []);
 
-    const handleExportTranscript = () => {
+    const handleExportTranscript = useCallback(() => {
         const data = JSON.stringify(messages, null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -608,7 +595,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         a.download = `transcript-${Date.now()}.json`;
         a.click();
         showToast('Transcript exported to file');
-    };
+    }, [messages]);
 
     const handleClearFactChecks = () => {
         setModalConfig({
@@ -1164,9 +1151,10 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                     </div>
                 </div>
 
+                {/* Center - Transcript */}
                 <TranscriptWidget
                     messages={messages}
-                    onSendMessage={handleSendMessageText}
+                    onSendMessage={handleSendMessage}
                     onClear={handleClearTranscript}
                     onExport={handleExportTranscript}
                     connectionStatus={connectionStatus}
