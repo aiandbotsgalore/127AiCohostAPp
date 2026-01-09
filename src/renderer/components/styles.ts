@@ -877,12 +877,10 @@ export const styles: Record<string, Style> = {
         fontFamily: 'monospace',
         color: '#00ddff',
     },
-    errorToast: {
+    toast: {
         position: 'fixed',
         top: '80px',
         right: '20px',
-        background: 'rgba(255, 68, 68, 0.9)',
-        border: '1px solid rgba(255, 68, 68, 1)',
         borderRadius: '12px',
         padding: '12px 20px',
         fontSize: '12px',

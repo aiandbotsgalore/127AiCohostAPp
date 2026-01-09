@@ -838,11 +838,11 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                     onChange={handleVoiceChange}
                                     aria-label="Select voice"
                                 >
-                                    {Object.keys(voices).map(voice => (
+                                    {['Puck', 'Charon', 'Kore', 'Fenrir', 'Aoede', 'Leda', 'Orus', 'Zephyr'].map(voice => (
                                         <option key={voice} value={voice}>{voice}</option>
                                     ))}
                                 </select>
-                                <div style={styles.voiceDescription}>{voices[selectedVoice]}</div>
+                                <div style={styles.voiceDescription}>{selectedVoice}</div>
 
                                 {/* Voice Mode Toggle */}
                                 <div style={{ marginBottom: '12px', padding: '12px', background: 'rgba(0, 0, 0, 0.3)', borderRadius: '8px', border: `1px solid ${useCustomVoice ? '#8a2be2' : '#00ddff'}` }}>
@@ -1508,12 +1508,16 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Toast Notification */}
             {toast && (
-                <div style={{
-                    ...styles.toast,
-                    background: toast.type === 'error' ? 'rgba(255, 68, 68, 0.9)' : 'rgba(0, 255, 136, 0.9)',
-                    border: `1px solid ${toast.type === 'error' ? 'rgba(255, 68, 68, 1)' : 'rgba(0, 255, 136, 1)'}`,
-                    color: toast.type === 'error' ? '#fff' : '#000',
-                }}>
+                <div
+                    style={{
+                        ...styles.toast,
+                        background: toast.type === 'error' ? 'rgba(255, 68, 68, 0.9)' : 'rgba(0, 255, 136, 0.9)',
+                        border: `1px solid ${toast.type === 'error' ? 'rgba(255, 68, 68, 1)' : 'rgba(0, 255, 136, 1)'}`,
+                        color: toast.type === 'error' ? '#fff' : '#000',
+                    }}
+                    role={toast.type === 'error' ? 'alert' : 'status'}
+                    aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+                >
                     {toast.type === 'error' ? '⚠️ ' : '✅ '}
                     {toast.message}
                 </div>
@@ -1537,6 +1541,11 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
 const styleSheet = document.createElement('style');
 styleSheet.textContent = `
+@keyframes slideIn {
+  from { opacity: 0; transform: translateX(20px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 @keyframes pulse {
   0%,100% { opacity:1; box-shadow:0 0 10px currentColor; }
   50% { opacity:.6; box-shadow:0 0 20px currentColor; }
