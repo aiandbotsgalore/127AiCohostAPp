@@ -7,6 +7,8 @@ import { AvatarWidget } from './AvatarWidget';
 import { SpeakingTimer } from './SpeakingTimer';
 import { StatusBarWidget } from './StatusBarWidget';
 import { MessageCounterWidget } from './MessageCounterWidget';
+import { FactCheckWidget } from './FactCheckWidget';
+import { FactCheckStatsWidget } from './FactCheckStatsWidget';
 import { InputModal } from './InputModal';
 import { TranscriptWidget } from './TranscriptWidget';
 import { styles } from './styles';
@@ -64,8 +66,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         { name: 'Brief Mode', content: "You are Dr. Snuggles. Be extremely concise and direct. Two sentences maximum." },
         { name: 'Academic Mode', content: "You are Dr. Snuggles. Use formal academic language with citations and reference theoretical physics, quantum mechanics, and exotic engineering." }
     ]);
-    const [factChecks, setFactChecks] = useState<any[]>([]);
-    const [pinnedClaims, setPinnedClaims] = useState(new Set());
     const [showSettings, setShowSettings] = useState(false);
 
     // Close settings on Escape
@@ -84,7 +84,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
     const [selectedInputDevice, setSelectedInputDevice] = useState('default');
     const [selectedOutputDevice, setSelectedOutputDevice] = useState('default');
-    const [factCheckFilter, setFactCheckFilter] = useState('All');
     const [favoritePresets, setFavoritePresets] = useState(['Wrap up', 'Be brief', 'Change topic', 'More detail']);
     const [voiceStyle, setVoiceStyle] = useState('natural');
     const [voicePace, setVoicePace] = useState('normal');
@@ -111,7 +110,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         description: undefined as string | undefined,
         confirmText: 'Confirm',
         confirmVariant: 'primary' as 'primary' | 'danger',
-        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearFactChecks' | 'savePrompt',
+        type: '' as '' | 'addPreset' | 'saveProfile' | 'savePrompt',
     });
 
     // Setup console log forwarding to main process for debugging
@@ -214,11 +213,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         unsubscribers.push(ipc.on('stream-status', (event, data) => {
             void event;
             setIsLive(data.isLive);
-        }));
-
-        unsubscribers.push(ipc.on('fact-check:claim', (event, claim) => {
-            void event;
-            setFactChecks(prev => [claim, ...prev].slice(0, 50));
         }));
 
         return () => {
@@ -514,41 +508,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         setSystemPrompt(savedPrompts[0].content);
     };
 
-    const togglePinClaim = (id) => {
-        setPinnedClaims(prev => {
-            const next = new Set(prev);
-            if (next.has(id)) {
-                next.delete(id);
-            } else {
-                next.add(id);
-            }
-            return next;
-        });
-    };
-
-    const handleClearFactChecks = () => {
-        setModalConfig({
-            isOpen: true,
-            title: 'Clear Fact Checks',
-            placeholder: undefined,
-            description: 'Are you sure you want to clear all fact checks? This will also unpin all claims.',
-            confirmText: 'Clear Facts',
-            confirmVariant: 'danger',
-            type: 'clearFactChecks',
-        });
-    };
-
-    const handleExportFactChecks = () => {
-        const data = JSON.stringify(factChecks, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `factchecks-${Date.now()}.json`;
-        a.click();
-        showToast('Fact checks exported to file');
-    };
-
     const handleClearContextHistory = () => {
         setContextHistory([]);
     };
@@ -606,10 +565,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             setBrainProfile(value);
             setBrainProfiles(prev => ({ ...prev, [value]: brainProfiles[value] }));
             showToast(`Profile "${value}" saved`);
-        } else if (modalConfig.type === 'clearFactChecks') {
-            setFactChecks([]);
-            setPinnedClaims(new Set());
-            showToast('Fact checks cleared');
         } else if (modalConfig.type === 'savePrompt') {
             if (value.trim()) {
                 setSavedPrompts(prev => [...prev, { name: value.trim(), content: systemPrompt }].slice(0, 50));
@@ -632,25 +587,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         });
     };
 
-    const filteredFactChecks = factChecks.filter(claim =>
-        factCheckFilter === 'All' || claim.verdict === factCheckFilter
-    );
-
-    const sortedFactChecks = [...filteredFactChecks].sort((a, b) => {
-        const aPinned = pinnedClaims.has(a.id);
-        const bPinned = pinnedClaims.has(b.id);
-        if (aPinned && !bPinned) return -1;
-        if (!aPinned && bPinned) return 1;
-        return 0;
-    });
-
-    const factCheckStats = {
-        total: factChecks.length,
-        true: factChecks.filter(c => c.verdict === 'True').length,
-        false: factChecks.filter(c => c.verdict === 'False').length,
-        misleading: factChecks.filter(c => c.verdict === 'Misleading').length,
-        unverified: factChecks.filter(c => c.verdict === 'Unverified').length
-    };
 
     const baseFontSize = fontSize / 100;
 
@@ -1060,18 +996,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                     <span>Speaking Time:</span>
                                     <SpeakingTimer />
                                 </div>
-                                <div style={styles.analyticsRow}>
-                                    <span>Fact Checks:</span>
-                                    <span style={styles.analyticsValue}>{factCheckStats.total}</span>
-                                </div>
-                                <div style={styles.analyticsRow}>
-                                    <span style={{ color: '#00ff88' }}>✓ True:</span>
-                                    <span style={styles.analyticsValue}>{factCheckStats.true}</span>
-                                </div>
-                                <div style={styles.analyticsRow}>
-                                    <span style={{ color: '#ff4444' }}>✗ False:</span>
-                                    <span style={styles.analyticsValue}>{factCheckStats.false}</span>
-                                </div>
+                                <FactCheckStatsWidget />
                             </div>
                         )}
                     </div>
@@ -1234,77 +1159,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             </button>
                         </div>
                         {!collapsedSections.has('facts') && (
-                            <>
-                                <div style={styles.factCheckTools}>
-                                    <select
-                                        style={styles.factFilterSelect}
-                                        value={factCheckFilter}
-                                        onChange={(e) => setFactCheckFilter(e.target.value)}
-                                        aria-label="Filter fact checks"
-                                    >
-                                        <option value="All">All</option>
-                                        <option value="True">True</option>
-                                        <option value="False">False</option>
-                                        <option value="Misleading">Misleading</option>
-                                        <option value="Unverified">Unverified</option>
-                                    </select>
-                                    <button
-                                        style={styles.toolBtn}
-                                        onClick={handleExportFactChecks}
-                                        title="Export fact checks"
-                                        aria-label="Export fact checks"
-                                    >
-                                        📥
-                                    </button>
-                                    <button
-                                        style={styles.toolBtn}
-                                        onClick={handleClearFactChecks}
-                                        title="Clear all"
-                                        aria-label="Clear fact checks"
-                                    >
-                                        🗑️
-                                    </button>
-                                </div>
-                                <div style={styles.factCheckFeed}>
-                                    {sortedFactChecks.map((claim) => (
-                                        <div key={claim.id} style={styles.factCheckItem}>
-                                            <div style={styles.factCheckHeader}>
-                                                <span style={{
-                                                    ...styles.verdictBadge,
-                                                    backgroundColor:
-                                                        claim.verdict === 'True' ? 'rgba(0, 255, 136, 0.2)' :
-                                                            claim.verdict === 'False' ? 'rgba(255, 68, 68, 0.2)' :
-                                                                claim.verdict === 'Misleading' ? 'rgba(255, 170, 0, 0.2)' :
-                                                                    'rgba(136, 136, 136, 0.2)',
-                                                    borderColor:
-                                                        claim.verdict === 'True' ? '#00ff88' :
-                                                            claim.verdict === 'False' ? '#ff4444' :
-                                                                claim.verdict === 'Misleading' ? '#ffaa00' :
-                                                                    '#888'
-                                                }}>
-                                                    {claim.verdict}
-                                                </span>
-                                                <span style={styles.confidenceBadge}>{claim.confidence}%</span>
-                                                <button
-                                                    style={{
-                                                        ...styles.pinButton,
-                                                        color: pinnedClaims.has(claim.id) ? '#ffaa00' : '#666'
-                                                    }}
-                                                    onClick={() => togglePinClaim(claim.id)}
-                                                    aria-label={pinnedClaims.has(claim.id) ? 'Unpin claim' : 'Pin claim'}
-                                                >
-                                                    {pinnedClaims.has(claim.id) ? '📌' : '📍'}
-                                                </button>
-                                            </div>
-                                            <div style={styles.factCheckClaim}>{claim.claim}</div>
-                                            <div style={styles.factCheckReason}>{claim.reason}</div>
-                                            <div style={styles.factCheckTime}>
-                                                {new Date(claim.timestamp).toLocaleTimeString()}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </>
+                            <FactCheckWidget collapsed={false} showToast={showToast} />
                         )}
                     </div>
                 </div>
