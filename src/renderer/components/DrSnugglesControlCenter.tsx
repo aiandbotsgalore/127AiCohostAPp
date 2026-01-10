@@ -752,6 +752,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('voice')}
+                                aria-label={collapsedSections.has('voice') ? 'Expand voice section' : 'Collapse voice section'}
                             >
                                 {collapsedSections.has('voice') ? '▼' : '▲'}
                             </button>
@@ -931,6 +932,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('brain')}
+                                aria-label={collapsedSections.has('brain') ? 'Expand brain section' : 'Collapse brain section'}
                             >
                                 {collapsedSections.has('brain') ? '▼' : '▲'}
                             </button>
@@ -1046,6 +1048,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('analytics')}
+                                aria-label={collapsedSections.has('analytics') ? 'Expand analytics section' : 'Collapse analytics section'}
                             >
                                 {collapsedSections.has('analytics') ? '▼' : '▲'}
                             </button>
@@ -1091,6 +1094,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('context')}
+                                aria-label={collapsedSections.has('context') ? 'Expand context section' : 'Collapse context section'}
                             >
                                 {collapsedSections.has('context') ? '▼' : '▲'}
                             </button>
@@ -1166,6 +1170,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('prompt')}
+                                aria-label={collapsedSections.has('prompt') ? 'Expand system prompt section' : 'Collapse system prompt section'}
                             >
                                 {collapsedSections.has('prompt') ? '▼' : '▲'}
                             </button>
@@ -1229,6 +1234,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('facts')}
+                                aria-label={collapsedSections.has('facts') ? 'Expand fact checker section' : 'Collapse fact checker section'}
                             >
                                 {collapsedSections.has('facts') ? '▼' : '▲'}
                             </button>
@@ -1266,43 +1272,51 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                     </button>
                                 </div>
                                 <div style={styles.factCheckFeed}>
-                                    {sortedFactChecks.map((claim) => (
-                                        <div key={claim.id} style={styles.factCheckItem}>
-                                            <div style={styles.factCheckHeader}>
-                                                <span style={{
-                                                    ...styles.verdictBadge,
-                                                    backgroundColor:
-                                                        claim.verdict === 'True' ? 'rgba(0, 255, 136, 0.2)' :
-                                                            claim.verdict === 'False' ? 'rgba(255, 68, 68, 0.2)' :
-                                                                claim.verdict === 'Misleading' ? 'rgba(255, 170, 0, 0.2)' :
-                                                                    'rgba(136, 136, 136, 0.2)',
-                                                    borderColor:
-                                                        claim.verdict === 'True' ? '#00ff88' :
-                                                            claim.verdict === 'False' ? '#ff4444' :
-                                                                claim.verdict === 'Misleading' ? '#ffaa00' :
-                                                                    '#888'
-                                                }}>
-                                                    {claim.verdict}
-                                                </span>
-                                                <span style={styles.confidenceBadge}>{claim.confidence}%</span>
-                                                <button
-                                                    style={{
-                                                        ...styles.pinButton,
-                                                        color: pinnedClaims.has(claim.id) ? '#ffaa00' : '#666'
-                                                    }}
-                                                    onClick={() => togglePinClaim(claim.id)}
-                                                    aria-label={pinnedClaims.has(claim.id) ? 'Unpin claim' : 'Pin claim'}
-                                                >
-                                                    {pinnedClaims.has(claim.id) ? '📌' : '📍'}
-                                                </button>
-                                            </div>
-                                            <div style={styles.factCheckClaim}>{claim.claim}</div>
-                                            <div style={styles.factCheckReason}>{claim.reason}</div>
-                                            <div style={styles.factCheckTime}>
-                                                {new Date(claim.timestamp).toLocaleTimeString()}
-                                            </div>
+                                    {sortedFactChecks.length === 0 ? (
+                                        <div style={{ ...styles.emptyState, height: '200px' }}>
+                                            <div style={styles.emptyStateIcon}>✓</div>
+                                            <div style={styles.emptyStateText}>No fact checks yet.</div>
+                                            <div style={styles.emptyStateSubtext}>I'm listening for claims to verify.</div>
                                         </div>
-                                    ))}
+                                    ) : (
+                                        sortedFactChecks.map((claim) => (
+                                            <div key={claim.id} style={styles.factCheckItem}>
+                                                <div style={styles.factCheckHeader}>
+                                                    <span style={{
+                                                        ...styles.verdictBadge,
+                                                        backgroundColor:
+                                                            claim.verdict === 'True' ? 'rgba(0, 255, 136, 0.2)' :
+                                                                claim.verdict === 'False' ? 'rgba(255, 68, 68, 0.2)' :
+                                                                    claim.verdict === 'Misleading' ? 'rgba(255, 170, 0, 0.2)' :
+                                                                        'rgba(136, 136, 136, 0.2)',
+                                                        borderColor:
+                                                            claim.verdict === 'True' ? '#00ff88' :
+                                                                claim.verdict === 'False' ? '#ff4444' :
+                                                                    claim.verdict === 'Misleading' ? '#ffaa00' :
+                                                                        '#888'
+                                                    }}>
+                                                        {claim.verdict}
+                                                    </span>
+                                                    <span style={styles.confidenceBadge}>{claim.confidence}%</span>
+                                                    <button
+                                                        style={{
+                                                            ...styles.pinButton,
+                                                            color: pinnedClaims.has(claim.id) ? '#ffaa00' : '#666'
+                                                        }}
+                                                        onClick={() => togglePinClaim(claim.id)}
+                                                        aria-label={pinnedClaims.has(claim.id) ? 'Unpin claim' : 'Pin claim'}
+                                                    >
+                                                        {pinnedClaims.has(claim.id) ? '📌' : '📍'}
+                                                    </button>
+                                                </div>
+                                                <div style={styles.factCheckClaim}>{claim.claim}</div>
+                                                <div style={styles.factCheckReason}>{claim.reason}</div>
+                                                <div style={styles.factCheckTime}>
+                                                    {new Date(claim.timestamp).toLocaleTimeString()}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </>
                         )}
