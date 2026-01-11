@@ -55,6 +55,50 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
     );
 };
 
+// ⚡ Bolt Optimization: Memoized message item to prevent re-rendering list on new tokens
+const TranscriptMessageItem = React.memo(({ msg, isSequence }: { msg: Message; isSequence: boolean }) => {
+    // Memoize the style object computation to keep it referentially stable if props don't change
+    const messageStyle = useMemo(() => ({
+        ...styles.transcriptMessage,
+        marginTop: isSequence ? '2px' : '20px',
+        borderTopLeftRadius: msg.role === 'user' ? '12px' : (isSequence ? '4px' : '12px'),
+        borderTopRightRadius: msg.role === 'user' ? (isSequence ? '4px' : '12px') : '12px',
+        borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
+        borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
+        alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+        maxWidth: '80%',
+        background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
+        border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
+        textAlign: 'left' as const
+    }), [msg.role, isSequence]);
+
+    const speakerStyle = useMemo(() => ({
+        ...styles.transcriptSpeaker,
+        color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
+    }), [msg.role]);
+
+    return (
+        <div style={messageStyle}>
+            {!isSequence && (
+                <div style={styles.transcriptHeader}>
+                    <span style={speakerStyle}>
+                        {msg.speaker || (msg.role === 'user' ? 'YOU' : 'DR. SNUGGLES')}
+                    </span>
+                    <div style={styles.transcriptActions}>
+                        <CopyButton text={msg.text} style={styles.copyBtn} />
+                        <span style={styles.transcriptTime}>
+                            {new Date(msg.timestamp).toLocaleTimeString()}
+                        </span>
+                    </div>
+                </div>
+            )}
+            <div style={styles.transcriptText}>{msg.text}</div>
+        </div>
+    );
+});
+
+TranscriptMessageItem.displayName = 'TranscriptMessageItem';
+
 export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
     connectionStatus
 }) => {
@@ -141,12 +185,13 @@ export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
     }, []);
 
     // Filter messages
+    const normalizedSearch = transcriptSearch.toLowerCase();
     const filteredMessages = useMemo(() => messages.filter(msg =>
-        !transcriptSearch ||
-        (msg.text && msg.text.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
-        (msg.speaker && msg.speaker.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
-        (msg.role && msg.role.toLowerCase().includes(transcriptSearch.toLowerCase()))
-    ), [messages, transcriptSearch]);
+        !normalizedSearch ||
+        (msg.text && msg.text.toLowerCase().includes(normalizedSearch)) ||
+        (msg.speaker && msg.speaker.toLowerCase().includes(normalizedSearch)) ||
+        (msg.role && msg.role.toLowerCase().includes(normalizedSearch))
+    ), [messages, normalizedSearch]);
 
     const handleSendMessage = (text: string) => {
         // Optimistically add user message to UI
@@ -254,40 +299,11 @@ export const TranscriptWidget: React.FC<TranscriptWidgetProps> = React.memo(({
                     filteredMessages.map((msg, idx) => {
                         const isSequence = idx > 0 && filteredMessages[idx - 1].role === msg.role;
                         return (
-                            <div
+                            <TranscriptMessageItem
                                 key={msg.id || idx}
-                                style={{
-                                    ...styles.transcriptMessage,
-                                    marginTop: isSequence ? '2px' : '20px',
-                                    borderTopLeftRadius: msg.role === 'user' ? '12px' : (isSequence ? '4px' : '12px'),
-                                    borderTopRightRadius: msg.role === 'user' ? (isSequence ? '4px' : '12px') : '12px',
-                                    borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
-                                    borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
-                                    alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                    maxWidth: '80%',
-                                    background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
-                                    border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
-                                    textAlign: 'left'
-                                }}
-                            >
-                                {!isSequence && (
-                                    <div style={styles.transcriptHeader}>
-                                        <span style={{
-                                            ...styles.transcriptSpeaker,
-                                            color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
-                                        }}>
-                                            {msg.speaker || (msg.role === 'user' ? 'YOU' : 'DR. SNUGGLES')}
-                                        </span>
-                                        <div style={styles.transcriptActions}>
-                                            <CopyButton text={msg.text} style={styles.copyBtn} />
-                                            <span style={styles.transcriptTime}>
-                                                {new Date(msg.timestamp).toLocaleTimeString()}
-                                            </span>
-                                        </div>
-                                    </div>
-                                )}
-                                <div style={styles.transcriptText}>{msg.text}</div>
-                            </div>
+                                msg={msg}
+                                isSequence={isSequence}
+                            />
                         );
                     })
                 )}
