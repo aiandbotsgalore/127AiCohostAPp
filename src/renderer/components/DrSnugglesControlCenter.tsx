@@ -14,6 +14,7 @@ import { styles } from './styles';
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
     const [isLive, setIsLive] = useState(false);
+    const [isProcessingLive, setIsProcessingLive] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState({ connected: false, quality: 0 });
     const [selectedVoice, setSelectedVoice] = useState('Charon');
     const [useCustomVoice, setUseCustomVoice] = useState(false); // false = Gemini Native (Charon), true = ElevenLabs Custom
@@ -411,20 +412,33 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     const handleGoLive = async () => {
-        const newState = !isLive;
-        setIsLive(newState);
-        ipc.send('stream:toggle', newState);
+        if (isProcessingLive) return;
 
-        if (newState) {
-            try {
+        setIsProcessingLive(true);
+        const newState = !isLive;
+
+        try {
+            if (newState) {
+                // Starting stream
                 await audioCaptureService.current?.start();
-            } catch (e) {
-                console.error("Failed to start audio capture:", e);
+                setIsLive(true);
+                ipc.send('stream:toggle', true);
+            } else {
+                // Stopping stream
+                audioCaptureService.current?.stop();
                 setIsLive(false);
                 ipc.send('stream:toggle', false);
             }
-        } else {
-            audioCaptureService.current?.stop();
+        } catch (e) {
+            console.error("Failed to toggle stream:", e);
+            showToast("Failed to toggle stream", 'error');
+            // Revert state if we failed to start
+            if (newState) {
+                setIsLive(false);
+                ipc.send('stream:toggle', false);
+            }
+        } finally {
+            setIsProcessingLive(false);
         }
     };
 
@@ -668,11 +682,20 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         <span style={styles.statusText}>{isLive ? 'LIVE' : 'OFFLINE'}</span>
                     </div>
                     <button
-                        style={{ ...styles.goLiveButton, ...(isLive ? styles.goLiveButtonActive : {}) }}
+                        style={{
+                            ...styles.goLiveButton,
+                            ...(isLive ? styles.goLiveButtonActive : {}),
+                            ...(isProcessingLive ? { opacity: 0.7, cursor: 'not-allowed' } : {})
+                        }}
                         onClick={handleGoLive}
+                        disabled={isProcessingLive}
                         aria-label={isLive ? 'End stream' : 'Go live'}
+                        aria-busy={isProcessingLive}
                     >
-                        {isLive ? '⏹ END STREAM' : '▶ GO LIVE'}
+                        {isProcessingLive
+                            ? (isLive ? 'STOPPING...' : 'STARTING...')
+                            : (isLive ? '⏹ END STREAM' : '▶ GO LIVE')
+                        }
                     </button>
                     <button
                         style={{
