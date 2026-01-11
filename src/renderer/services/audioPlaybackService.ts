@@ -10,11 +10,13 @@
  * - Encoded audio decoding (MP3 support)
  */
 
+import { PERFORMANCE_CONFIG } from '../../config/performance.config';
+
 export class AudioPlaybackService {
   private _audioContext: AudioContext | null = null;
   private nextStartTime: number = 0;
   private _isActive: boolean = false;
-  private sampleRate: number = 48000;
+  private sampleRate: number = PERFORMANCE_CONFIG.AUDIO.SAMPLE_RATE;
 
   // STT fallback
   private recognition: any = null; // Use any to avoid type errors
@@ -106,6 +108,19 @@ export class AudioPlaybackService {
   }
 
   /**
+   * Set volume (0-100)
+   */
+  public setVolume(volume: number): void {
+    const normalizedVolume = Math.max(0, Math.min(100, volume)) / 100;
+    if (this.gainNode) {
+      this.gainNode.gain.value = normalizedVolume;
+      console.log(`[AudioPlaybackService] 🔊 Volume set to: ${volume}% (gain: ${normalizedVolume})`);
+    } else {
+      console.warn('[AudioPlaybackService] Cannot set volume - no gain node yet');
+    }
+  }
+
+  /**
    * Connect a visualizer analyser node to the audio chain
    */
   public connectVisualizer(analyser: AnalyserNode): void {
@@ -128,9 +143,20 @@ export class AudioPlaybackService {
       console.log(`[AudioPlaybackService] 🎵 DIAGNOSTIC: AudioContext created. State: ${this._audioContext.state}, Sample rate: ${this._audioContext.sampleRate}`);
       this.nextStartTime = this._audioContext.currentTime;
 
-      // Create gain node for visualizer chain
+      // Handle AudioContext state changes and errors gracefully
+      this._audioContext.addEventListener('statechange', () => {
+        console.log(`[AudioPlaybackService] AudioContext state changed to: ${this._audioContext?.state}`);
+      });
+
+      // Suppress generic AudioContext errors (they're usually benign and auto-recover)
+      // The error "AudioContext encountered an error" is common on startup and doesn't affect functionality
+      // More specific errors will still be caught in the try-catch blocks of queueAudio()
+
+      // Create gain node for volume control and visualizer chain
       this.gainNode = this._audioContext.createGain();
+      this.gainNode.gain.value = 1.0; // Start at full volume
       this.gainNode.connect(this._audioContext.destination);
+      console.log(`[AudioPlaybackService] 🔊 Gain node created with volume: ${this.gainNode.gain.value}`);
 
       this._isActive = true;
 
@@ -168,7 +194,7 @@ export class AudioPlaybackService {
    */
   private async queueAudio(audioData: Float32Array | ArrayBuffer | Uint8Array): Promise<void> {
     console.log(`[AudioPlaybackService] 🎵 DIAGNOSTIC: queueAudio called. Active: ${this._isActive}, Context: ${!!this._audioContext}, GainNode: ${!!this.gainNode}`);
-    
+
     if (!this._isActive || !this._audioContext || !this.gainNode) {
       console.warn('[AudioPlaybackService] ⚠️ DIAGNOSTIC: Cannot queue audio - service not active or missing context');
       return;

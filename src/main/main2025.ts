@@ -874,7 +874,7 @@ class SnugglesApp2025 {
         }
       };
 
-      const loadWithRetry = async (retries = 5, delay = 2000): Promise<boolean> => {
+      const loadWithRetry = async (retries = 30, delay = 1000): Promise<boolean> => {
         // Try each port
         for (const port of ports) {
           if (await tryPort(port)) return true;
@@ -918,10 +918,21 @@ class SnugglesApp2025 {
     }
 
     // Auto-load knowledge base
-    const knowledgeDir = path.join(__dirname, '../../../knowledge');
+    let knowledgeDir = path.join(__dirname, '../../../knowledge');
+    // Verify it exists, if not try relative to CWD (development mode fallback)
+    if (!fs.existsSync(knowledgeDir)) {
+      const altKnowledgeDir = path.join(process.cwd(), 'knowledge');
+      console.log(`[Main] ⚠️ Knowledge dir not found at ${knowledgeDir}, trying ${altKnowledgeDir}`);
+      knowledgeDir = altKnowledgeDir;
+    }
+    
     try {
-      await this.knowledgeStore.loadDocuments(knowledgeDir);
-      console.log('[Main] ✅ Knowledge base loaded');
+      if (fs.existsSync(knowledgeDir)) {
+        await this.knowledgeStore.loadDocuments(knowledgeDir);
+        console.log('[Main] ✅ Knowledge base loaded from:', knowledgeDir);
+      } else {
+        console.warn(`[Main] ⚠️ Knowledge directory not found at: ${knowledgeDir}`);
+      }
     } catch (error) {
       console.error('[Main] ⚠️ Knowledge base load failed:', error);
     }

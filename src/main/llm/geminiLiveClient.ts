@@ -2,7 +2,7 @@
  * GEMINI LIVE CLIENT - December 2025 Standard
  *
  * Modern implementation using @google/genai SDK (v1.30.0+)
- * Model: gemini-live-2.5-flash-native-audio (GA release, Dec 2025)
+ * Model: gemini-2.0-flash-live-001 (stable GA live audio model)
  * Audio: 16kHz 16-bit mono PCM → base64
  * Voice: Charon (hardcoded for Dr. Snuggles)
  *
@@ -24,17 +24,11 @@ import { VoiceActivityDetector } from '../audio/vad';
 import { DrSnugglesBrain } from '../../brain/DrSnugglesBrain';
 import { GeminiDiagnostics, KNOWN_LIVE_MODELS } from './geminiDiagnostics';
 
-// Live API model selection
-// Prefer "latest" (non-dated) model names first, then fall back to dated/legacy names.
+// Live API model selection - Use ACTUAL working models
+// Updated Dec 2025: gemini-2.5-flash-native-audio-preview-12-2025 is the current native audio model
 const DEFAULT_LIVE_MODEL_CANDIDATES = [
-  'gemini-live-2.5-flash-native-audio',
-  'gemini-live-2.5-flash',
-  'gemini-live-2.5-flash-preview',
-  'gemini-2.5-flash-native-audio-preview-09-2025',
-  'gemini-2.5-flash-preview-native-audio-dialog',
-  // Legacy/compat fallbacks
-  'gemini-2.0-flash-live-001',
-  'gemini-2.0-flash-exp'
+  'gemini-2.5-flash-native-audio-preview-12-2025',  // Current native audio model (Dec 2025)
+  'gemini-2.0-flash-exp',                            // Experimental fallback
 ] as const;
 
 const MODEL_NAME = DEFAULT_LIVE_MODEL_CANDIDATES[0];
@@ -230,7 +224,19 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
     const tryConnect = async (modelIndex: number, isRetryInstruction = false): Promise<void> => {
       try {
         const boundedModelIndex = Math.max(0, Math.min(modelIndex, modelCandidates.length - 1));
-        const selectedModel = modelCandidates[boundedModelIndex];
+        let selectedModel = modelCandidates[boundedModelIndex];
+
+        // 🔄 DYNAMIC MODEL SELECTION:
+        // Native-audio models don't support TEXT-only mode
+        // Check both voiceMode AND explicit responseModalities config
+        const isNativeAudioModel = selectedModel.includes('native-audio');
+        const isTextOnlyMode = this.voiceMode === 'elevenlabs-custom' ||
+          (config.responseModalities && !config.responseModalities.includes(Modality.AUDIO));
+
+        if (isTextOnlyMode && isNativeAudioModel) {
+          console.log(`[GeminiLiveClient] ⚠️ TEXT-only mode detected - switching from native-audio model to gemini-2.0-flash-exp`);
+          selectedModel = 'gemini-2.0-flash-exp'; // Use experimental model for TEXT mode
+        }
 
         console.log(`[GeminiLiveClient] Starting session... (Retry: ${isRetryInstruction}, Model: ${selectedModel})`);
 
@@ -252,10 +258,6 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
           ? [Modality.TEXT]
           : (config.responseModalities || [Modality.AUDIO]);
         const isAudioMode = responseModalities.includes(Modality.AUDIO);
-
-        // 🔄 DYNAMIC MODEL SELECTION:
-        // Native-audio models don't support TEXT-only mode, so switch models based on modality
-        // selectedModel is chosen before building config
 
         console.log(`[GeminiLiveClient] 🎙️ Voice Mode: ${this.voiceMode}`);
         console.log(`[GeminiLiveClient] Selected model: ${selectedModel} (Audio mode: ${isAudioMode})`);
@@ -698,7 +700,7 @@ export class GeminiLiveClient extends EventEmitter<GeminiLiveClientEvents> {
 
       let assistantEmittedThisMessage = false;
 
-      if (message.serverContent.modelTurn?.parts) {
+      if (message.serverContent?.modelTurn?.parts) {
         // Signal VAD that Gemini is speaking (only when actual content arrives)
         this.vad.setGeminiSpeaking(true);
         let textContent = '';

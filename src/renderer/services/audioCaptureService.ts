@@ -5,12 +5,14 @@
  * Buffers the audio and sends it to the main process via IPC.
  */
 
+import { PERFORMANCE_CONFIG } from '../../config/performance.config';
+
 export class AudioCaptureService {
   private audioContext: AudioContext | null = null;
   private mediaStream: MediaStream | null = null;
   private workletNode: AudioWorkletNode | null = null;
   private isActive: boolean = false;
-  private sampleRate: number = 48000;
+  private sampleRate: number = PERFORMANCE_CONFIG.AUDIO.SAMPLE_RATE;
 
   // STT for user input transcription
   private recognition: any = null;

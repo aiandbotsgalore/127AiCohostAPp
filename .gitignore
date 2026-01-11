@@ -1,50 +1,85 @@
-# Dependencies
+# ===== DEPENDENCIES =====
+# CRITICAL: node_modules should NEVER be in git (use package.json instead)
 node_modules/
+package-lock.json
 
-# Build outputs
+# ===== BUILD OUTPUTS =====
+# Compiled TypeScript and bundled code
 dist/
 build/
+out/
+.webpack/
 *.js
 *.js.map
 
-# Electron
-out/
-.webpack/
+# Exception: Keep config files
+!*.config.js
+!vite.config.ts
 
-# Environment
+# ===== KNOWLEDGE BASE (LARGE FILES) =====
+# PDFs and large documents shouldn't be in git
+knowledge/*.pdf
+knowledge/*.epub
+knowledge/*.mobi
+knowledge/*.djvu
+
+# Keep the directory structure but not the files
+!knowledge/.gitkeep
+
+# ===== ELECTRON =====
+# Electron build artifacts
+*.asar
+*.exe
+*.dmg
+*.AppImage
+*.deb
+*.rpm
+
+# ===== ENVIRONMENT & SECRETS =====
 .env
 .env.local
 .env.*.local
+.env.production
 
-# IDEs
+# ===== IDEs & EDITORS =====
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
+# ===== OS FILES =====
 .DS_Store
 Thumbs.db
+desktop.ini
 
-# Logs
+# ===== LOGS =====
 *.log
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+logs/
 
-# Knowledge Base Index
+# ===== DATABASES & CACHES =====
+# Knowledge base index
 snuggles-index.json
 
-# Dexie Database
+# Dexie/IndexedDB
 indexedDB/
 
-# Config
+# Config (generated at runtime)
 config.json
 
-# Temporary files
+# ===== TEMPORARY FILES =====
 *.tmp
 *.temp
-node_modules/
-undefined/
 temp/
+.cache/
+
+# ===== GIT & GITHUB =====
+# Don't commit git history backups
+*.orig
+
+# ===== MISC =====
+undefined/
+verification/

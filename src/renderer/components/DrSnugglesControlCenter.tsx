@@ -5,6 +5,7 @@ import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { InputModal } from './InputModal';
 import { styles } from './styles';
+import { PERFORMANCE_CONFIG } from '../../config/performance.config';
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
     const [copied, setCopied] = useState(false);
@@ -169,7 +170,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
-    
+
     // Refs for timeouts (Merged from HEAD and Local)
     const toastTimeout = useRef<NodeJS.Timeout | null>(null);
     const blinkTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -204,6 +205,13 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             audioPlaybackService.current?.stop();
         };
     }, []);
+
+    // Apply volume changes to the playback service
+    useEffect(() => {
+        if (audioPlaybackService.current) {
+            audioPlaybackService.current.setVolume(outputVolume);
+        }
+    }, [outputVolume]);
 
 
     // Voice options
@@ -248,7 +256,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                     clearTimeout(errorToastTimeout.current);
                 }
                 // We reuse showToast but keep this ref logic for compatibility if extended later
-                errorToastTimeout.current = setTimeout(() => {}, 5000); 
+                errorToastTimeout.current = setTimeout(() => { }, 5000);
             }
         }));
 
@@ -1192,7 +1200,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                         <button
                                             style={{
                                                 background: useCustomVoice ? 'rgba(138, 43, 226, 0.3)' : 'rgba(0, 221, 255, 0.3)',
-                                                border: `1px solid ${useCustomVoice ? '#8a2be2' : '#00ddff'}`, 
+                                                border: `1px solid ${useCustomVoice ? '#8a2be2' : '#00ddff'}`,
                                                 color: useCustomVoice ? '#8a2be2' : '#00ddff',
                                                 padding: '4px 12px',
                                                 borderRadius: '6px',
