@@ -162,6 +162,9 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [blinkState, setBlinkState] = useState(false);
     const [mouthOpen, setMouthOpen] = useState(0);
 
+    // UX State
+    const [isProcessingLive, setIsProcessingLive] = useState(false);
+
     // Prompt Saving State
     const [isSavePromptOpen, setIsSavePromptOpen] = useState(false);
     const [promptNameInput, setPromptNameInput] = useState('');
@@ -646,20 +649,28 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     const handleGoLive = async () => {
+        if (isProcessingLive) return;
+
+        setIsProcessingLive(true);
         const newState = !isLive;
         setIsLive(newState);
         ipc.send('stream:toggle', newState);
 
-        if (newState) {
-            try {
+        try {
+            if (newState) {
                 await audioCaptureService.current?.start();
-            } catch (e) {
-                console.error("Failed to start audio capture:", e);
+            } else {
+                audioCaptureService.current?.stop();
+            }
+        } catch (e) {
+            console.error("Failed to toggle audio capture:", e);
+            // Revert state on error
+            if (newState) {
                 setIsLive(false);
                 ipc.send('stream:toggle', false);
             }
-        } else {
-            audioCaptureService.current?.stop();
+        } finally {
+            setIsProcessingLive(false);
         }
     };
 
@@ -961,9 +972,14 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                     <button
                         style={{ ...styles.goLiveButton, ...(isLive ? styles.goLiveButtonActive : {}) }}
                         onClick={handleGoLive}
+                        disabled={isProcessingLive}
+                        aria-busy={isProcessingLive}
                         aria-label={isLive ? 'End stream' : 'Go live'}
                     >
-                        {isLive ? '⏹ END STREAM' : '▶ GO LIVE'}
+                        {isProcessingLive
+                            ? (isLive ? '⏳ STARTING...' : '⏳ STOPPING...')
+                            : (isLive ? '⏹ END STREAM' : '▶ GO LIVE')
+                        }
                     </button>
                     <button
                         style={{
@@ -1054,7 +1070,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('avatar')}
-                                aria-label="Toggle avatar section"
+                                aria-label={collapsedSections.has('avatar') ? 'Expand avatar section' : 'Collapse avatar section'}
+                                aria-expanded={!collapsedSections.has('avatar')}
                             >
                                 {collapsedSections.has('avatar') ? '▼' : '▲'}
                             </button>
@@ -1175,6 +1192,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('voice')}
+                                aria-label={collapsedSections.has('voice') ? 'Expand voice section' : 'Collapse voice section'}
+                                aria-expanded={!collapsedSections.has('voice')}
                             >
                                 {collapsedSections.has('voice') ? '▼' : '▲'}
                             </button>
@@ -1354,6 +1373,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('brain')}
+                                aria-label={collapsedSections.has('brain') ? 'Expand brain section' : 'Collapse brain section'}
+                                aria-expanded={!collapsedSections.has('brain')}
                             >
                                 {collapsedSections.has('brain') ? '▼' : '▲'}
                             </button>
@@ -1469,6 +1490,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('analytics')}
+                                aria-label={collapsedSections.has('analytics') ? 'Expand analytics section' : 'Collapse analytics section'}
+                                aria-expanded={!collapsedSections.has('analytics')}
                             >
                                 {collapsedSections.has('analytics') ? '▼' : '▲'}
                             </button>
@@ -1638,6 +1661,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('context')}
+                                aria-label={collapsedSections.has('context') ? 'Expand context section' : 'Collapse context section'}
+                                aria-expanded={!collapsedSections.has('context')}
                             >
                                 {collapsedSections.has('context') ? '▼' : '▲'}
                             </button>
@@ -1713,6 +1738,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('prompt')}
+                                aria-label={collapsedSections.has('prompt') ? 'Expand prompt section' : 'Collapse prompt section'}
+                                aria-expanded={!collapsedSections.has('prompt')}
                             >
                                 {collapsedSections.has('prompt') ? '▼' : '▲'}
                             </button>
@@ -1776,6 +1803,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('facts')}
+                                aria-label={collapsedSections.has('facts') ? 'Expand fact checker section' : 'Collapse fact checker section'}
+                                aria-expanded={!collapsedSections.has('facts')}
                             >
                                 {collapsedSections.has('facts') ? '▼' : '▲'}
                             </button>
@@ -1813,43 +1842,51 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                                     </button>
                                 </div>
                                 <div style={styles.factCheckFeed}>
-                                    {sortedFactChecks.map((claim) => (
-                                        <div key={claim.id} style={styles.factCheckItem}>
-                                            <div style={styles.factCheckHeader}>
-                                                <span style={{
-                                                    ...styles.verdictBadge,
-                                                    backgroundColor:
-                                                        claim.verdict === 'True' ? 'rgba(0, 255, 136, 0.2)' :
-                                                            claim.verdict === 'False' ? 'rgba(255, 68, 68, 0.2)' :
-                                                                claim.verdict === 'Misleading' ? 'rgba(255, 170, 0, 0.2)' :
-                                                                    'rgba(136, 136, 136, 0.2)',
-                                                    borderColor:
-                                                        claim.verdict === 'True' ? '#00ff88' :
-                                                            claim.verdict === 'False' ? '#ff4444' :
-                                                                claim.verdict === 'Misleading' ? '#ffaa00' :
-                                                                    '#888'
-                                                }}>
-                                                    {claim.verdict}
-                                                </span>
-                                                <span style={styles.confidenceBadge}>{claim.confidence}%</span>
-                                                <button
-                                                    style={{
-                                                        ...styles.pinButton,
-                                                        color: pinnedClaims.has(claim.id) ? '#ffaa00' : '#666'
-                                                    }}
-                                                    onClick={() => togglePinClaim(claim.id)}
-                                                    aria-label={pinnedClaims.has(claim.id) ? 'Unpin claim' : 'Pin claim'}
-                                                >
-                                                    {pinnedClaims.has(claim.id) ? '📌' : '📍'}
-                                                </button>
-                                            </div>
-                                            <div style={styles.factCheckClaim}>{claim.claim}</div>
-                                            <div style={styles.factCheckReason}>{claim.reason}</div>
-                                            <div style={styles.factCheckTime}>
-                                                {new Date(claim.timestamp).toLocaleTimeString()}
-                                            </div>
+                                    {sortedFactChecks.length === 0 ? (
+                                        <div style={{ ...styles.emptyState, padding: '40px 20px', minHeight: '200px' }}>
+                                            <div style={{ ...styles.emptyStateIcon, fontSize: '32px' }}>✓</div>
+                                            <div style={styles.emptyStateText}>No fact checks yet.</div>
+                                            <div style={styles.emptyStateSubtext}>Claims will appear here as they are verified.</div>
                                         </div>
-                                    ))}
+                                    ) : (
+                                        sortedFactChecks.map((claim) => (
+                                            <div key={claim.id} style={styles.factCheckItem}>
+                                                <div style={styles.factCheckHeader}>
+                                                    <span style={{
+                                                        ...styles.verdictBadge,
+                                                        backgroundColor:
+                                                            claim.verdict === 'True' ? 'rgba(0, 255, 136, 0.2)' :
+                                                                claim.verdict === 'False' ? 'rgba(255, 68, 68, 0.2)' :
+                                                                    claim.verdict === 'Misleading' ? 'rgba(255, 170, 0, 0.2)' :
+                                                                        'rgba(136, 136, 136, 0.2)',
+                                                        borderColor:
+                                                            claim.verdict === 'True' ? '#00ff88' :
+                                                                claim.verdict === 'False' ? '#ff4444' :
+                                                                    claim.verdict === 'Misleading' ? '#ffaa00' :
+                                                                        '#888'
+                                                    }}>
+                                                        {claim.verdict}
+                                                    </span>
+                                                    <span style={styles.confidenceBadge}>{claim.confidence}%</span>
+                                                    <button
+                                                        style={{
+                                                            ...styles.pinButton,
+                                                            color: pinnedClaims.has(claim.id) ? '#ffaa00' : '#666'
+                                                        }}
+                                                        onClick={() => togglePinClaim(claim.id)}
+                                                        aria-label={pinnedClaims.has(claim.id) ? 'Unpin claim' : 'Pin claim'}
+                                                    >
+                                                        {pinnedClaims.has(claim.id) ? '📌' : '📍'}
+                                                    </button>
+                                                </div>
+                                                <div style={styles.factCheckClaim}>{claim.claim}</div>
+                                                <div style={styles.factCheckReason}>{claim.reason}</div>
+                                                <div style={styles.factCheckTime}>
+                                                    {new Date(claim.timestamp).toLocaleTimeString()}
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
                                 </div>
                             </>
                         )}
@@ -2040,12 +2077,15 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Toast Notification */}
             {toast && (
-                <div style={{
-                    ...styles.toast,
-                    background: toast.type === 'error' ? 'rgba(255, 68, 68, 0.9)' : 'rgba(0, 255, 136, 0.9)',
-                    border: `1px solid ${toast.type === 'error' ? 'rgba(255, 68, 68, 1)' : 'rgba(0, 255, 136, 1)'}`,
-                    color: toast.type === 'error' ? '#fff' : '#000',
-                }}>
+                <div
+                    role={toast.type === 'error' ? 'alert' : 'status'}
+                    style={{
+                        ...styles.toast,
+                        background: toast.type === 'error' ? 'rgba(255, 68, 68, 0.9)' : 'rgba(0, 255, 136, 0.9)',
+                        border: `1px solid ${toast.type === 'error' ? 'rgba(255, 68, 68, 1)' : 'rgba(0, 255, 136, 1)'}`,
+                        color: toast.type === 'error' ? '#fff' : '#000',
+                    }}
+                >
                     {toast.type === 'error' ? '⚠️ ' : '✅ '}
                     {toast.message}
                 </div>
