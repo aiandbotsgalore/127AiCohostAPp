@@ -4,42 +4,8 @@ import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { InputModal } from './InputModal';
+import { TranscriptWidget } from './TranscriptWidget';
 import { styles } from './styles';
-import { PERFORMANCE_CONFIG } from '../../config/performance.config';
-
-const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
-    const [copied, setCopied] = useState(false);
-    const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-    useEffect(() => {
-        return () => {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-        };
-    }, []);
-
-    const handleCopy = () => {
-        navigator.clipboard.writeText(text).then(() => {
-            setCopied(true);
-            if (timeoutRef.current) clearTimeout(timeoutRef.current);
-            timeoutRef.current = setTimeout(() => setCopied(false), 2000);
-        }).catch(err => {
-            console.error('Failed to copy:', err);
-        });
-    };
-
-    return (
-        <button
-            style={{ ...style, color: copied ? '#00ff88' : style?.color }}
-            onClick={handleCopy}
-            title={copied ? 'Copied!' : 'Copy message'}
-            aria-label={copied ? 'Copied' : 'Copy message'}
-        >
-            {copied ? '✓' : '📋'}
-        </button>
-    );
-};
 
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
@@ -56,9 +22,7 @@ const DrSnugglesControlCenter: React.FC = () => {
     const [emotionalRange, setEmotionalRange] = useState(true);
     const [canInterrupt, setCanInterrupt] = useState(true);
     const [listeningSensitivity, setListeningSensitivity] = useState('Medium');
-    const [messages, setMessages] = useState<any[]>([]);
     const [contextInput, setContextInput] = useState('');
-    const [messageInput, setMessageInput] = useState(''); // NEW: Text chat input
     const [contextHistory, setContextHistory] = useState<any[]>([]);
     const [systemPrompt, setSystemPrompt] = useState(
         "You are Dr. Snuggles. You are helpful, sarcastic, and scientific. Keep answers short."
@@ -105,7 +69,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [latency, setLatency] = useState(0);
     const [latencyHistory, setLatencyHistory] = useState<number[]>([]);
     const [processingStatus, setProcessingStatus] = useState({ queueDepth: 0, processingDelay: 0 });
-    const [transcriptSearch, setTranscriptSearch] = useState('');
     const [factCheckFilter, setFactCheckFilter] = useState('All');
     const [favoritePresets, setFavoritePresets] = useState(['Wrap up', 'Be brief', 'Change topic', 'More detail']);
     const [voiceStyle, setVoiceStyle] = useState('natural');
@@ -123,7 +86,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         description: undefined as string | undefined,
         confirmText: 'Confirm',
         confirmVariant: 'primary' as 'primary' | 'danger',
-        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearTranscript' | 'clearFactChecks',
+        type: '' as '' | 'addPreset' | 'saveProfile' | 'clearFactChecks',
     });
 
     // Setup console log forwarding to main process for debugging
@@ -166,7 +129,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [isSavePromptOpen, setIsSavePromptOpen] = useState(false);
     const [promptNameInput, setPromptNameInput] = useState('');
 
-    const transcriptRef = useRef<HTMLDivElement>(null);
     const smokeCanvasRef = useRef<HTMLCanvasElement>(null);
     const smokeParticles = useRef<any[]>([]);
     const settingsSaveTimeout = useRef<NodeJS.Timeout | null>(null);
@@ -234,13 +196,22 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         'Casual': { thinking: false, budget: 3000, emotional: true, interrupt: true, sensitivity: 'Medium' }
     });
 
-    const showToast = (message: string, type: 'error' | 'success' = 'success') => {
+    const showToast = React.useCallback((message: string, type: 'error' | 'success' = 'success') => {
         setToast({ message, type });
         if (toastTimeout.current) {
             clearTimeout(toastTimeout.current);
         }
         toastTimeout.current = setTimeout(() => setToast(null), 3000);
-    };
+    }, []);
+
+    // Listen for custom event when message is sent from TranscriptWidget
+    useEffect(() => {
+        const handleMessageSent = () => {
+            setMessageCount(prev => prev + 1);
+        };
+        window.addEventListener('snuggles-message-sent', handleMessageSent);
+        return () => window.removeEventListener('snuggles-message-sent', handleMessageSent);
+    }, []);
 
     // IPC Listeners
     useEffect(() => {
@@ -278,25 +249,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             }
         }));
 
-        unsubscribers.push(ipc.on('message-received', (event, message) => {
+        unsubscribers.push(ipc.on('message-received', (event) => {
             void event;
-            setMessages(prev => {
-                const lastMsg = prev[prev.length - 1];
-                // Check if last message is from same role and recent (within 5 seconds)
-                // If so, append text instead of new bubble
-                // Added 5s timeout check to prevent merging messages from different turns that just happened to be sequential
-                if (lastMsg && lastMsg.role === message.role && (Date.now() - lastMsg.timestamp < 5000)) {
-                    // Create new array with replaced last item
-                    const newHistory = [...prev];
-                    newHistory[newHistory.length - 1] = {
-                        ...lastMsg,
-                        text: lastMsg.text + message.text
-                    };
-                    return newHistory;
-                }
-                // Otherwise new message
-                return [...prev, message].slice(-100);
-            });
             setMessageCount(prev => prev + 1);
         }));
 
@@ -463,13 +417,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         selectedOutputDevice
     ]);
 
-    // Auto-scroll transcript
-    useEffect(() => {
-        if (transcriptRef.current) {
-            transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight;
-        }
-    }, [messages]);
-
     // Eye blink animation
     useEffect(() => {
         const blinkInterval = setInterval(() => {
@@ -588,11 +535,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             handleSendContext();
                         }
                         break;
-                    case 'k':
-                        e.preventDefault();
-                        setTranscriptSearch('');
-                        document.querySelector('[data-search]')?.focus();
-                        break;
                     case 'm':
                         e.preventDefault();
                         handleMuteToggle();
@@ -610,26 +552,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         window.addEventListener('keydown', handleKeyPress);
         return () => window.removeEventListener('keydown', handleKeyPress);
     }, [contextInput]);
-
-    // Listen for transcript events from STT
-    useEffect(() => {
-        const handleTranscript = (event: any) => {
-            const { text, role } = event.detail;
-            console.log(`[GUI] Transcript received (${role}):`, text);
-
-            const newMessage = {
-                id: `msg-${Date.now()}-${Math.random()}`,
-                role: role,
-                text: text,
-                timestamp: Date.now()
-            };
-
-            setMessages(prev => [...prev, newMessage].slice(-100)); // Limit to 100 messages
-        };
-
-        window.addEventListener('snugglesTranscript', handleTranscript);
-        return () => window.removeEventListener('snugglesTranscript', handleTranscript);
-    }, []);
 
     // Handlers
     const handleTestAudio = () => {
@@ -710,30 +632,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         }
     };
 
-    // NEW: Text Chat Handler
-    const handleSendMessage = async (e: React.FormEvent) => {
-        e.preventDefault();
-        if (!messageInput.trim()) return;
-
-        // Optimistically add user message to UI
-        const text = messageInput.trim();
-
-        const newMessage = {
-            id: `msg-${Date.now()}-${Math.random()}`,
-            role: 'user',
-            text: text,
-            timestamp: Date.now()
-        };
-
-        setMessages(prev => [...prev, newMessage].slice(-100));
-        setMessageCount(prev => prev + 1);
-
-        setMessageInput(''); // Clear input immediately
-
-        // Send to backend via IPC
-        ipc.send('send-message', text);
-    };
-
     const handleQuickPreset = (preset) => {
         const presets = {
             'Wrap up': 'Please wrap up this topic and move on.',
@@ -784,29 +682,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             }
             return next;
         });
-    };
-
-    const handleClearTranscript = () => {
-        setModalConfig({
-            isOpen: true,
-            title: 'Clear Transcript',
-            placeholder: undefined,
-            description: 'Are you sure you want to clear all messages? This action cannot be undone.',
-            confirmText: 'Clear Messages',
-            confirmVariant: 'danger',
-            type: 'clearTranscript',
-        });
-    };
-
-    const handleExportTranscript = () => {
-        const data = JSON.stringify(messages, null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `transcript-${Date.now()}.json`;
-        a.click();
-        showToast('Transcript exported to file');
     };
 
     const handleClearFactChecks = () => {
@@ -889,9 +764,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             setBrainProfile(value);
             setBrainProfiles(prev => ({ ...prev, [value]: brainProfiles[value] }));
             showToast(`Profile "${value}" saved`);
-        } else if (modalConfig.type === 'clearTranscript') {
-            setMessages([]);
-            showToast('Transcript cleared');
         } else if (modalConfig.type === 'clearFactChecks') {
             setFactChecks([]);
             setPinnedClaims(new Set());
@@ -912,15 +784,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             return next;
         });
     };
-
-    // Filter messages with defensive null checks to prevent errors when msg.speaker is undefined
-    // Messages may come from STT (with role) or IPC (with speaker), so we check both
-    const filteredMessages = messages.filter(msg =>
-        !transcriptSearch ||
-        (msg.text && msg.text.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
-        (msg.speaker && msg.speaker.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
-        (msg.role && msg.role.toLowerCase().includes(transcriptSearch.toLowerCase()))
-    );
 
     const filteredFactChecks = factChecks.filter(claim =>
         factCheckFilter === 'All' || claim.verdict === factCheckFilter
@@ -1501,133 +1364,10 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                 </div>
 
                 {/* Center - Transcript */}
-                <div style={styles.centerPanel}>
-                    <div style={styles.sectionHeaderRow}>
-                        <div style={styles.sectionHeader}>💬 TRANSCRIPT</div>
-                        <div style={styles.transcriptTools}>
-                            <input
-                                type="text"
-                                placeholder="Search... (Ctrl+K)"
-                                value={transcriptSearch}
-                                onChange={(e) => setTranscriptSearch(e.target.value)}
-                                style={styles.searchInput}
-                                data-search
-                                aria-label="Search transcript"
-                            />
-                            <button
-                                style={styles.toolBtn}
-                                onClick={handleExportTranscript}
-                                title="Export transcript"
-                                aria-label="Export transcript"
-                            >
-                                📥
-                            </button>
-                            <button
-                                style={styles.toolBtn}
-                                onClick={handleClearTranscript}
-                                title="Clear transcript"
-                                aria-label="Clear transcript"
-                            >
-                                🗑️
-                            </button>
-                        </div>
-                    </div>
-                    <div style={styles.transcript} ref={transcriptRef}>
-                        {messages.length === 0 ? (
-                            <div style={styles.emptyState}>
-                                <div style={styles.emptyStateIcon}>💬</div>
-                                <div style={styles.emptyStateText}>No transcript yet.</div>
-                                <div style={styles.emptyStateSubtext}>Start voice mode or send a message to begin.</div>
-                            </div>
-                        ) : filteredMessages.length === 0 ? (
-                            <div style={styles.emptyState}>
-                                <div style={styles.emptyStateIcon}>🔎</div>
-                                <div style={styles.emptyStateText}>No messages match your search.</div>
-                                <div style={styles.emptyStateSubtext}>Try a different keyword or clear the search.</div>
-                            </div>
-                        ) : (
-                            filteredMessages.map((msg, idx) => {
-                                const isSequence = idx > 0 && filteredMessages[idx - 1].role === msg.role;
-                                return (
-                                    <div
-                                        key={msg.id || idx}
-                                        style={{
-                                            ...styles.transcriptMessage,
-                                            marginTop: isSequence ? '2px' : '20px',
-                                            borderTopLeftRadius: msg.role === 'user' ? '12px' : (isSequence ? '4px' : '12px'),
-                                            borderTopRightRadius: msg.role === 'user' ? (isSequence ? '4px' : '12px') : '12px',
-                                            borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
-                                            borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
-                                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                            maxWidth: '80%',
-                                            background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
-                                            border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
-                                            textAlign: 'left' // Keep text left aligned for readability even in right bubble
-                                        }}
-                                    >
-                                        {!isSequence && (
-                                            <div style={styles.transcriptHeader}>
-                                                <span style={{
-                                                    ...styles.transcriptSpeaker,
-                                                    color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
-                                                }}>
-                                                    {msg.speaker || (msg.role === 'user' ? 'YOU' : 'DR. SNUGGLES')}
-                                                </span>
-                                                <div style={styles.transcriptActions}>
-                                                    <CopyButton text={msg.text} style={styles.copyBtn} />
-                                                    <span style={styles.transcriptTime}>
-                                                        {new Date(msg.timestamp).toLocaleTimeString()}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div style={styles.transcriptText}>{msg.text}</div>
-                                    </div>
-                                );
-                            })
-                        )}
-                    </div>
-                    {/* NEW: Text Input Area */}
-                    <div style={{
-                        padding: '15px',
-                        borderTop: '1px solid #333',
-                        background: '#13131f'
-                    }}>
-                        <form onSubmit={handleSendMessage} style={{ display: 'flex', gap: '10px' }}>
-                            <input
-                                type="text"
-                                value={messageInput}
-                                onChange={(e) => setMessageInput(e.target.value)}
-                                placeholder="Type a message to Dr. Snuggles..."
-                                style={{
-                                    flex: 1,
-                                    padding: '12px',
-                                    borderRadius: '8px',
-                                    border: '1px solid #444',
-                                    background: '#1a1a2e',
-                                    color: '#fff',
-                                    outline: 'none',
-                                    fontFamily: 'inherit'
-                                }}
-                            />
-                            <button
-                                type="submit"
-                                disabled={!connectionStatus.connected}
-                                style={{
-                                    padding: '0 20px',
-                                    borderRadius: '8px',
-                                    border: 'none',
-                                    background: connectionStatus.connected ? '#8a2be2' : '#444',
-                                    color: '#fff',
-                                    cursor: connectionStatus.connected ? 'pointer' : 'not-allowed',
-                                    fontWeight: 'bold'
-                                }}
-                            >
-                                SEND
-                            </button>
-                        </form>
-                    </div>
-                </div>
+                <TranscriptWidget
+                    connectionStatus={connectionStatus}
+                    onShowToast={showToast}
+                />
 
                 {/* Right Sidebar */}
                 <div style={styles.rightSidebar}>
