@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { AudioCaptureService } from '../services/audioCaptureService';
 import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { InputModal } from './InputModal';
 import { styles } from './styles';
-import { PERFORMANCE_CONFIG } from '../../config/performance.config';
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
     const [copied, setCopied] = useState(false);
@@ -40,6 +39,44 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
         </button>
     );
 };
+
+const TranscriptMessageItem = React.memo(({ msg, isSequence }: { msg: any; isSequence: boolean }) => {
+    return (
+        <div
+            style={{
+                ...styles.transcriptMessage,
+                marginTop: isSequence ? '2px' : '20px',
+                borderTopLeftRadius: msg.role === 'user' ? '12px' : (isSequence ? '4px' : '12px'),
+                borderTopRightRadius: msg.role === 'user' ? (isSequence ? '4px' : '12px') : '12px',
+                borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
+                borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
+                alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '80%',
+                background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
+                border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
+                textAlign: 'left' // Keep text left aligned for readability even in right bubble
+            }}
+        >
+            {!isSequence && (
+                <div style={styles.transcriptHeader}>
+                    <span style={{
+                        ...styles.transcriptSpeaker,
+                        color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
+                    }}>
+                        {msg.speaker || (msg.role === 'user' ? 'YOU' : 'DR. SNUGGLES')}
+                    </span>
+                    <div style={styles.transcriptActions}>
+                        <CopyButton text={msg.text} style={styles.copyBtn} />
+                        <span style={styles.transcriptTime}>
+                            {new Date(msg.timestamp).toLocaleTimeString()}
+                        </span>
+                    </div>
+                </div>
+            )}
+            <div style={styles.transcriptText}>{msg.text}</div>
+        </div>
+    );
+});
 
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
@@ -915,33 +952,33 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
     // Filter messages with defensive null checks to prevent errors when msg.speaker is undefined
     // Messages may come from STT (with role) or IPC (with speaker), so we check both
-    const filteredMessages = messages.filter(msg =>
+    const filteredMessages = useMemo(() => messages.filter(msg =>
         !transcriptSearch ||
         (msg.text && msg.text.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
         (msg.speaker && msg.speaker.toLowerCase().includes(transcriptSearch.toLowerCase())) ||
         (msg.role && msg.role.toLowerCase().includes(transcriptSearch.toLowerCase()))
-    );
+    ), [messages, transcriptSearch]);
 
-    const filteredFactChecks = factChecks.filter(claim =>
+    const filteredFactChecks = useMemo(() => factChecks.filter(claim =>
         factCheckFilter === 'All' || claim.verdict === factCheckFilter
-    );
+    ), [factChecks, factCheckFilter]);
 
-    const sortedFactChecks = [...filteredFactChecks].sort((a, b) => {
+    const sortedFactChecks = useMemo(() => [...filteredFactChecks].sort((a, b) => {
         const aPinned = pinnedClaims.has(a.id);
         const bPinned = pinnedClaims.has(b.id);
         if (aPinned && !bPinned) return -1;
         if (!aPinned && bPinned) return 1;
         return 0;
-    });
+    }), [filteredFactChecks, pinnedClaims]);
 
     const sessionDuration = Math.floor((Date.now() - sessionStart) / 1000);
-    const factCheckStats = {
+    const factCheckStats = useMemo(() => ({
         total: factChecks.length,
         true: factChecks.filter(c => c.verdict === 'True').length,
         false: factChecks.filter(c => c.verdict === 'False').length,
         misleading: factChecks.filter(c => c.verdict === 'Misleading').length,
         unverified: factChecks.filter(c => c.verdict === 'Unverified').length
-    };
+    }), [factChecks]);
 
     const baseFontSize = fontSize / 100;
 
@@ -1549,40 +1586,11 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             filteredMessages.map((msg, idx) => {
                                 const isSequence = idx > 0 && filteredMessages[idx - 1].role === msg.role;
                                 return (
-                                    <div
+                                    <TranscriptMessageItem
                                         key={msg.id || idx}
-                                        style={{
-                                            ...styles.transcriptMessage,
-                                            marginTop: isSequence ? '2px' : '20px',
-                                            borderTopLeftRadius: msg.role === 'user' ? '12px' : (isSequence ? '4px' : '12px'),
-                                            borderTopRightRadius: msg.role === 'user' ? (isSequence ? '4px' : '12px') : '12px',
-                                            borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
-                                            borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
-                                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                            maxWidth: '80%',
-                                            background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
-                                            border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
-                                            textAlign: 'left' // Keep text left aligned for readability even in right bubble
-                                        }}
-                                    >
-                                        {!isSequence && (
-                                            <div style={styles.transcriptHeader}>
-                                                <span style={{
-                                                    ...styles.transcriptSpeaker,
-                                                    color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
-                                                }}>
-                                                    {msg.speaker || (msg.role === 'user' ? 'YOU' : 'DR. SNUGGLES')}
-                                                </span>
-                                                <div style={styles.transcriptActions}>
-                                                    <CopyButton text={msg.text} style={styles.copyBtn} />
-                                                    <span style={styles.transcriptTime}>
-                                                        {new Date(msg.timestamp).toLocaleTimeString()}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div style={styles.transcriptText}>{msg.text}</div>
-                                    </div>
+                                        msg={msg}
+                                        isSequence={isSequence}
+                                    />
                                 );
                             })
                         )}
