@@ -44,6 +44,7 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
     const [isLive, setIsLive] = useState(false);
+    const [isProcessingLive, setIsProcessingLive] = useState(false); // Loading state for async audio setup
     const [connectionStatus, setConnectionStatus] = useState({ connected: false, quality: 0 });
     const [selectedVoice, setSelectedVoice] = useState('Charon');
     const [useCustomVoice, setUseCustomVoice] = useState(false); // false = Gemini Native (Charon), true = ElevenLabs Custom
@@ -646,20 +647,37 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     const handleGoLive = async () => {
-        const newState = !isLive;
-        setIsLive(newState);
-        ipc.send('stream:toggle', newState);
+        if (isProcessingLive) return;
 
-        if (newState) {
-            try {
+        const targetState = !isLive;
+        setIsProcessingLive(true);
+
+        try {
+            if (targetState) {
+                // STARTING
+                // 1. Tell main process to prepare
+                ipc.send('stream:toggle', true);
+
+                // 2. Initialize local audio (this can take time)
                 await audioCaptureService.current?.start();
-            } catch (e) {
-                console.error("Failed to start audio capture:", e);
+
+                // 3. Update UI only on success
+                setIsLive(true);
+            } else {
+                // STOPPING
+                ipc.send('stream:toggle', false);
+                audioCaptureService.current?.stop();
                 setIsLive(false);
+            }
+        } catch (e) {
+            console.error("Failed to toggle live state:", e);
+            // Revert backend state if we failed locally
+            if (targetState) {
                 ipc.send('stream:toggle', false);
             }
-        } else {
-            audioCaptureService.current?.stop();
+            showToast("Failed to access audio device", "error");
+        } finally {
+            setIsProcessingLive(false);
         }
     };
 
@@ -959,11 +977,18 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         <span style={styles.statusText}>{isLive ? 'LIVE' : 'OFFLINE'}</span>
                     </div>
                     <button
-                        style={{ ...styles.goLiveButton, ...(isLive ? styles.goLiveButtonActive : {}) }}
+                        style={{
+                            ...styles.goLiveButton,
+                            ...(isLive ? styles.goLiveButtonActive : {}),
+                            opacity: isProcessingLive ? 0.7 : 1,
+                            cursor: isProcessingLive ? 'wait' : 'pointer'
+                        }}
                         onClick={handleGoLive}
-                        aria-label={isLive ? 'End stream' : 'Go live'}
+                        disabled={isProcessingLive}
+                        aria-busy={isProcessingLive}
+                        aria-label={isProcessingLive ? (isLive ? 'Stopping stream' : 'Starting stream') : (isLive ? 'End stream' : 'Go live')}
                     >
-                        {isLive ? '⏹ END STREAM' : '▶ GO LIVE'}
+                        {isProcessingLive ? (isLive ? '⏹ STOPPING...' : '⏳ INITIALIZING...') : (isLive ? '⏹ END STREAM' : '▶ GO LIVE')}
                     </button>
                     <button
                         style={{
