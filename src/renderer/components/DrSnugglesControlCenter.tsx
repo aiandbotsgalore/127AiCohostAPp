@@ -5,7 +5,14 @@ import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { InputModal } from './InputModal';
 import { styles } from './styles';
-import { PERFORMANCE_CONFIG } from '../../config/performance.config';
+
+interface TranscriptMessage {
+    id?: string;
+    role?: string;
+    text: string;
+    timestamp: number;
+    speaker?: string;
+}
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
     const [copied, setCopied] = useState(false);
@@ -40,6 +47,46 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
         </button>
     );
 };
+
+// ⚡ Bolt Optimization: Memoized message item prevents re-rendering all messages
+// when parent state (like audio levels or latency) updates.
+const TranscriptMessageItem = React.memo(({ msg, isSequence }: { msg: TranscriptMessage, isSequence: boolean }) => {
+    return (
+        <div
+            style={{
+                ...styles.transcriptMessage,
+                marginTop: isSequence ? '2px' : '20px',
+                borderTopLeftRadius: msg.role === 'user' ? '12px' : (isSequence ? '4px' : '12px'),
+                borderTopRightRadius: msg.role === 'user' ? (isSequence ? '4px' : '12px') : '12px',
+                borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
+                borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
+                alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                maxWidth: '80%',
+                background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
+                border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
+                textAlign: 'left' // Keep text left aligned for readability even in right bubble
+            }}
+        >
+            {!isSequence && (
+                <div style={styles.transcriptHeader}>
+                    <span style={{
+                        ...styles.transcriptSpeaker,
+                        color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
+                    }}>
+                        {msg.speaker || (msg.role === 'user' ? 'YOU' : 'DR. SNUGGLES')}
+                    </span>
+                    <div style={styles.transcriptActions}>
+                        <CopyButton text={msg.text} style={styles.copyBtn} />
+                        <span style={styles.transcriptTime}>
+                            {new Date(msg.timestamp).toLocaleTimeString()}
+                        </span>
+                    </div>
+                </div>
+            )}
+            <div style={styles.transcriptText}>{msg.text}</div>
+        </div>
+    );
+});
 
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
@@ -1549,40 +1596,11 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             filteredMessages.map((msg, idx) => {
                                 const isSequence = idx > 0 && filteredMessages[idx - 1].role === msg.role;
                                 return (
-                                    <div
+                                    <TranscriptMessageItem
                                         key={msg.id || idx}
-                                        style={{
-                                            ...styles.transcriptMessage,
-                                            marginTop: isSequence ? '2px' : '20px',
-                                            borderTopLeftRadius: msg.role === 'user' ? '12px' : (isSequence ? '4px' : '12px'),
-                                            borderTopRightRadius: msg.role === 'user' ? (isSequence ? '4px' : '12px') : '12px',
-                                            borderBottomLeftRadius: msg.role === 'user' ? '12px' : '4px',
-                                            borderBottomRightRadius: msg.role === 'user' ? '4px' : '12px',
-                                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-                                            maxWidth: '80%',
-                                            background: msg.role === 'user' ? 'rgba(0, 221, 255, 0.05)' : 'rgba(138, 43, 226, 0.05)',
-                                            border: msg.role === 'user' ? '1px solid rgba(0, 221, 255, 0.1)' : '1px solid rgba(138, 43, 226, 0.1)',
-                                            textAlign: 'left' // Keep text left aligned for readability even in right bubble
-                                        }}
-                                    >
-                                        {!isSequence && (
-                                            <div style={styles.transcriptHeader}>
-                                                <span style={{
-                                                    ...styles.transcriptSpeaker,
-                                                    color: msg.role === 'assistant' ? '#8a2be2' : '#00ddff'
-                                                }}>
-                                                    {msg.speaker || (msg.role === 'user' ? 'YOU' : 'DR. SNUGGLES')}
-                                                </span>
-                                                <div style={styles.transcriptActions}>
-                                                    <CopyButton text={msg.text} style={styles.copyBtn} />
-                                                    <span style={styles.transcriptTime}>
-                                                        {new Date(msg.timestamp).toLocaleTimeString()}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        )}
-                                        <div style={styles.transcriptText}>{msg.text}</div>
-                                    </div>
+                                        msg={msg}
+                                        isSequence={isSequence}
+                                    />
                                 );
                             })
                         )}
