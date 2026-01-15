@@ -44,6 +44,7 @@ const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ t
 const DrSnugglesControlCenter: React.FC = () => {
     // State Management
     const [isLive, setIsLive] = useState(false);
+    const [isProcessingLive, setIsProcessingLive] = useState(false);
     const [connectionStatus, setConnectionStatus] = useState({ connected: false, quality: 0 });
     const [selectedVoice, setSelectedVoice] = useState('Charon');
     const [useCustomVoice, setUseCustomVoice] = useState(false); // false = Gemini Native (Charon), true = ElevenLabs Custom
@@ -646,21 +647,28 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     };
 
     const handleGoLive = async () => {
+        if (isProcessingLive) return;
+        setIsProcessingLive(true);
         const newState = !isLive;
-        setIsLive(newState);
+
+        // Optimistic backend toggle for responsiveness
         ipc.send('stream:toggle', newState);
 
         if (newState) {
             try {
                 await audioCaptureService.current?.start();
+                setIsLive(true);
             } catch (e) {
                 console.error("Failed to start audio capture:", e);
                 setIsLive(false);
                 ipc.send('stream:toggle', false);
+                showToast("Failed to access microphone", "error");
             }
         } else {
             audioCaptureService.current?.stop();
+            setIsLive(false);
         }
+        setIsProcessingLive(false);
     };
 
     const handleVoiceChange = (e) => {
@@ -959,11 +967,17 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                         <span style={styles.statusText}>{isLive ? 'LIVE' : 'OFFLINE'}</span>
                     </div>
                     <button
-                        style={{ ...styles.goLiveButton, ...(isLive ? styles.goLiveButtonActive : {}) }}
+                        style={{
+                            ...styles.goLiveButton,
+                            ...(isLive ? styles.goLiveButtonActive : {}),
+                            ...(isProcessingLive ? { opacity: 0.7, cursor: 'wait' } : {})
+                        }}
                         onClick={handleGoLive}
+                        disabled={isProcessingLive}
+                        aria-busy={isProcessingLive}
                         aria-label={isLive ? 'End stream' : 'Go live'}
                     >
-                        {isLive ? '⏹ END STREAM' : '▶ GO LIVE'}
+                        {isProcessingLive ? (isLive ? 'STOPPING...' : 'STARTING...') : (isLive ? '⏹ END STREAM' : '▶ GO LIVE')}
                     </button>
                     <button
                         style={{
@@ -2071,14 +2085,14 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 const styleSheet = document.createElement('style');
 styleSheet.textContent = `
             @keyframes pulse {
-                0 %, 100 % { opacity: 1; box- shadow: 0 0 10px currentColor; }
-            50% {opacity: 0.6; box-shadow: 0 0 20px currentColor; }
-  }
+                0%, 100% { opacity: 1; box-shadow: 0 0 10px currentColor; }
+                50% { opacity: 0.6; box-shadow: 0 0 20px currentColor; }
+            }
 
             @keyframes slideIn {
-                from {transform: translateX(100%); opacity: 0; }
-            to {transform: translateX(0); opacity: 1; }
-  }
+                from { transform: translateX(100%); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
 
             input[type="range"]::-webkit-slider-thumb {
                 -webkit - appearance: none;
@@ -2144,8 +2158,8 @@ styleSheet.textContent = `
             .high-contrast button,
             .high-contrast select,
             .high-contrast input {
-                border - width: 2px;
-  }
+                border-width: 2px;
+            }
             `;
 document.head.appendChild(styleSheet);
 

@@ -5,3 +5,7 @@
 ## 2025-10-27 - Modal Consistency & Dev Environment
 **Learning:** Native `window.confirm` dialogs break the immersive dark-mode experience and are not accessible. Also, stale `.js` build artifacts alongside `.tsx` files can silently block HMR updates in this Vite setup.
 **Action:** Use the custom `InputModal` for all confirmations. Always ensure no stale `.js` files exist in source folders when working with TypeScript.
+
+## 2025-10-31 - Async State for Hardware Access
+**Learning:** Actions triggering hardware access (like microphone) can have variable latency, confusing users if immediate feedback isn't provided. Optimistic UI updates can be misleading if the hardware initialization fails.
+**Action:** Implement explicit "STARTING..." / "STOPPING..." states for hardware-dependent buttons, using `disabled` and `aria-busy` attributes to prevent race conditions and inform assistive tech.
