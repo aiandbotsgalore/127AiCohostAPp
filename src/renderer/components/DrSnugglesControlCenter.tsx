@@ -4,8 +4,8 @@ import { AudioPlaybackService } from '../services/audioPlaybackService';
 import { ipc } from '../ipc';
 import { AudioMeterWidget } from './AudioMeterWidget';
 import { InputModal } from './InputModal';
+import { StatusBar } from './StatusBar';
 import { styles } from './styles';
-import { PERFORMANCE_CONFIG } from '../../config/performance.config';
 
 const CopyButton: React.FC<{ text: string; style?: React.CSSProperties }> = ({ text, style }) => {
     const [copied, setCopied] = useState(false);
@@ -102,9 +102,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [showSettings, setShowSettings] = useState(false);
     const [selectedInputDevice, setSelectedInputDevice] = useState('default');
     const [selectedOutputDevice, setSelectedOutputDevice] = useState('default');
-    const [latency, setLatency] = useState(0);
-    const [latencyHistory, setLatencyHistory] = useState<number[]>([]);
-    const [processingStatus, setProcessingStatus] = useState({ queueDepth: 0, processingDelay: 0 });
     const [transcriptSearch, setTranscriptSearch] = useState('');
     const [factCheckFilter, setFactCheckFilter] = useState('All');
     const [favoritePresets, setFavoritePresets] = useState(['Wrap up', 'Be brief', 'Change topic', 'More detail']);
@@ -113,7 +110,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
     const [voiceTone, setVoiceTone] = useState('conversational');
     const [voiceAccent, setVoiceAccent] = useState('neutral');
     const [brainProfile, setBrainProfile] = useState('Standard');
-    const [sessionStart] = useState(Date.now());
     const [messageCount, setMessageCount] = useState(0);
     const [speakingTime, setSpeakingTime] = useState(0);
     const [modalConfig, setModalConfig] = useState({
@@ -303,17 +299,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         unsubscribers.push(ipc.on('fact-check:claim', (event, claim) => {
             void event;
             setFactChecks(prev => [claim, ...prev].slice(0, 50));
-        }));
-
-        unsubscribers.push(ipc.on('genai:latencyUpdate', (event, data) => {
-            void event;
-            setLatency(data.totalRoundtrip);
-            setLatencyHistory(prev => [...prev, data.totalRoundtrip].slice(-30));
-        }));
-
-        unsubscribers.push(ipc.on('processing:status', (event, data) => {
-            void event;
-            setProcessingStatus(data);
         }));
 
         return () => {
@@ -934,7 +919,6 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
         return 0;
     });
 
-    const sessionDuration = Math.floor((Date.now() - sessionStart) / 1000);
     const factCheckStats = {
         total: factChecks.length,
         true: factChecks.filter(c => c.verdict === 'True').length,
@@ -1010,38 +994,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
             </div>
 
             {/* Status Bar - Latency & Queue */}
-            <div style={styles.statusBar}>
-                <div style={styles.statusBarItem}>
-                    <span style={styles.statusBarLabel}>LATENCY</span>
-                    <span style={{ ...styles.statusBarValue, color: latency < 100 ? '#00ff88' : latency < 200 ? '#ffaa00' : '#ff4444' }}>
-                        {latency.toFixed(0)}ms
-                    </span>
-                    <div style={styles.miniGraph}>
-                        {latencyHistory.slice(-15).map((val, idx) => (
-                            <div
-                                key={idx}
-                                style={{
-                                    ...styles.miniGraphBar,
-                                    height: `${(val / 300) * 100}%`,
-                                    backgroundColor: val < 100 ? '#00ff88' : val < 200 ? '#ffaa00' : '#ff4444'
-                                }}
-                            />
-                        ))}
-                    </div>
-                </div>
-                <div style={styles.statusBarItem}>
-                    <span style={styles.statusBarLabel}>QUEUE DEPTH</span>
-                    <span style={styles.statusBarValue}>{processingStatus.queueDepth}</span>
-                </div>
-                <div style={styles.statusBarItem}>
-                    <span style={styles.statusBarLabel}>PROCESSING DELAY</span>
-                    <span style={styles.statusBarValue}>{processingStatus.processingDelay.toFixed(0)}ms</span>
-                </div>
-                <div style={styles.statusBarItem}>
-                    <span style={styles.statusBarLabel}>SESSION</span>
-                    <span style={styles.statusBarValue}>{Math.floor(sessionDuration / 60)}:{(sessionDuration % 60).toString().padStart(2, '0')}</span>
-                </div>
-            </div>
+            <StatusBar />
 
             {/* Main Layout */}
             <div style={styles.mainLayout}>
