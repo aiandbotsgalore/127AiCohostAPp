@@ -1054,7 +1054,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('avatar')}
-                                aria-label="Toggle avatar section"
+                                aria-label={collapsedSections.has('avatar') ? "Expand avatar section" : "Collapse avatar section"}
                             >
                                 {collapsedSections.has('avatar') ? '▼' : '▲'}
                             </button>
@@ -1175,6 +1175,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('voice')}
+                                aria-label={collapsedSections.has('voice') ? "Expand voice section" : "Collapse voice section"}
                             >
                                 {collapsedSections.has('voice') ? '▼' : '▲'}
                             </button>
@@ -1354,6 +1355,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('brain')}
+                                aria-label={collapsedSections.has('brain') ? "Expand brain section" : "Collapse brain section"}
                             >
                                 {collapsedSections.has('brain') ? '▼' : '▲'}
                             </button>
@@ -1469,6 +1471,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('analytics')}
+                                aria-label={collapsedSections.has('analytics') ? "Expand analytics section" : "Collapse analytics section"}
                             >
                                 {collapsedSections.has('analytics') ? '▼' : '▲'}
                             </button>
@@ -1638,6 +1641,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('context')}
+                                aria-label={collapsedSections.has('context') ? "Expand context section" : "Collapse context section"}
                             >
                                 {collapsedSections.has('context') ? '▼' : '▲'}
                             </button>
@@ -1713,6 +1717,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('prompt')}
+                                aria-label={collapsedSections.has('prompt') ? "Expand system prompt section" : "Collapse system prompt section"}
                             >
                                 {collapsedSections.has('prompt') ? '▼' : '▲'}
                             </button>
@@ -1776,6 +1781,7 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('facts')}
+                                aria-label={collapsedSections.has('facts') ? "Expand fact checker section" : "Collapse fact checker section"}
                             >
                                 {collapsedSections.has('facts') ? '▼' : '▲'}
                             </button>
