@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useId } from 'react';
 import { styles } from './styles';
 
 export interface InputModalProps {
@@ -23,11 +23,17 @@ export const InputModal: React.FC<InputModalProps> = ({
   onSubmit
 }) => {
   const [value, setValue] = useState('');
+  const [error, setError] = useState('');
   const confirmBtnRef = useRef<HTMLButtonElement>(null);
+
+  const titleId = useId();
+  const descriptionId = useId();
+  const errorId = useId();
 
   useEffect(() => {
     if (isOpen) {
       setValue('');
+      setError('');
       if (!placeholder) {
         setTimeout(() => confirmBtnRef.current?.focus(), 50);
       }
@@ -48,7 +54,10 @@ export const InputModal: React.FC<InputModalProps> = ({
   const submit = () => {
     if (placeholder) {
       const trimmed = value.trim();
-      if (!trimmed) return;
+      if (!trimmed) {
+        setError('This field is required');
+        return;
+      }
       onSubmit(trimmed);
     } else {
       onSubmit('');
@@ -60,33 +69,56 @@ export const InputModal: React.FC<InputModalProps> = ({
       <div
         style={{ ...styles.settingsPanel, height: 'auto', maxHeight: 'none', width: '400px' }}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={description ? descriptionId : undefined}
       >
         <div style={styles.settingsPanelHeader}>
-          <h2 style={styles.settingsTitle}>{title}</h2>
-          <button style={styles.settingsCloseBtn} onClick={onClose}>
+          <h2 id={titleId} style={styles.settingsTitle}>{title}</h2>
+          <button
+            style={styles.settingsCloseBtn}
+            onClick={onClose}
+            aria-label="Close modal"
+          >
             ✕
           </button>
         </div>
         <div style={styles.modalContent}>
           {description && (
-            <div style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5' }}>
+            <div id={descriptionId} style={{ color: '#ddd', fontSize: '14px', lineHeight: '1.5' }}>
               {description}
             </div>
           )}
 
           {placeholder && (
-            <input
-              type="text"
-              value={value}
-              onChange={(e) => setValue(e.target.value)}
-              placeholder={placeholder}
-              style={styles.modalInput}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') submit();
-                if (e.key === 'Escape') onClose();
-              }}
-            />
+            <div>
+              <input
+                type="text"
+                value={value}
+                onChange={(e) => {
+                  setValue(e.target.value);
+                  if (error) setError('');
+                }}
+                placeholder={placeholder}
+                style={{
+                  ...styles.modalInput,
+                  borderColor: error ? '#ff4444' : styles.modalInput.borderColor
+                }}
+                autoFocus
+                aria-invalid={!!error}
+                aria-errormessage={error ? errorId : undefined}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') submit();
+                  if (e.key === 'Escape') onClose();
+                }}
+              />
+              {error && (
+                <div id={errorId} style={{ color: '#ff4444', fontSize: '12px', marginTop: '4px' }}>
+                  {error}
+                </div>
+              )}
+            </div>
           )}
 
           <div style={styles.modalButtonRow}>
