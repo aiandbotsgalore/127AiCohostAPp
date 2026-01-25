@@ -1054,7 +1054,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('avatar')}
-                                aria-label="Toggle avatar section"
+                                aria-label={collapsedSections.has('avatar') ? 'Expand Avatar section' : 'Collapse Avatar section'}
+                                aria-expanded={!collapsedSections.has('avatar')}
                             >
                                 {collapsedSections.has('avatar') ? '▼' : '▲'}
                             </button>
@@ -1175,6 +1176,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('voice')}
+                                aria-label={collapsedSections.has('voice') ? 'Expand Voice section' : 'Collapse Voice section'}
+                                aria-expanded={!collapsedSections.has('voice')}
                             >
                                 {collapsedSections.has('voice') ? '▼' : '▲'}
                             </button>
@@ -1354,6 +1357,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('brain')}
+                                aria-label={collapsedSections.has('brain') ? 'Expand Brain section' : 'Collapse Brain section'}
+                                aria-expanded={!collapsedSections.has('brain')}
                             >
                                 {collapsedSections.has('brain') ? '▼' : '▲'}
                             </button>
@@ -1469,6 +1474,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('analytics')}
+                                aria-label={collapsedSections.has('analytics') ? 'Expand Analytics section' : 'Collapse Analytics section'}
+                                aria-expanded={!collapsedSections.has('analytics')}
                             >
                                 {collapsedSections.has('analytics') ? '▼' : '▲'}
                             </button>
@@ -1638,6 +1645,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('context')}
+                                aria-label={collapsedSections.has('context') ? 'Expand Context section' : 'Collapse Context section'}
+                                aria-expanded={!collapsedSections.has('context')}
                             >
                                 {collapsedSections.has('context') ? '▼' : '▲'}
                             </button>
@@ -1713,6 +1722,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('prompt')}
+                                aria-label={collapsedSections.has('prompt') ? 'Expand System Prompt section' : 'Collapse System Prompt section'}
+                                aria-expanded={!collapsedSections.has('prompt')}
                             >
                                 {collapsedSections.has('prompt') ? '▼' : '▲'}
                             </button>
@@ -1776,6 +1787,8 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
                             <button
                                 style={styles.collapseBtn}
                                 onClick={() => toggleSection('facts')}
+                                aria-label={collapsedSections.has('facts') ? 'Expand Fact Checker section' : 'Collapse Fact Checker section'}
+                                aria-expanded={!collapsedSections.has('facts')}
                             >
                                 {collapsedSections.has('facts') ? '▼' : '▲'}
                             </button>
