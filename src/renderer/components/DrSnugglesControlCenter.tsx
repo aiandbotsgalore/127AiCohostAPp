@@ -2040,12 +2040,17 @@ Your voice is **Charon** - deep, resonant, and commanding authority.` },
 
             {/* Toast Notification */}
             {toast && (
-                <div style={{
-                    ...styles.toast,
-                    background: toast.type === 'error' ? 'rgba(255, 68, 68, 0.9)' : 'rgba(0, 255, 136, 0.9)',
-                    border: `1px solid ${toast.type === 'error' ? 'rgba(255, 68, 68, 1)' : 'rgba(0, 255, 136, 1)'}`,
-                    color: toast.type === 'error' ? '#fff' : '#000',
-                }}>
+                <div
+                    role={toast.type === 'error' ? 'alert' : 'status'}
+                    aria-live={toast.type === 'error' ? 'assertive' : 'polite'}
+                    aria-atomic="true"
+                    style={{
+                        ...styles.toast,
+                        background: toast.type === 'error' ? 'rgba(255, 68, 68, 0.9)' : 'rgba(0, 255, 136, 0.9)',
+                        border: `1px solid ${toast.type === 'error' ? 'rgba(255, 68, 68, 1)' : 'rgba(0, 255, 136, 1)'}`,
+                        color: toast.type === 'error' ? '#fff' : '#000',
+                    }}
+                >
                     {toast.type === 'error' ? '⚠️ ' : '✅ '}
                     {toast.message}
                 </div>
