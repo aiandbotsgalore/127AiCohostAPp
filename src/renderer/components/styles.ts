@@ -877,7 +877,7 @@ export const styles: Record<string, Style> = {
         fontFamily: 'monospace',
         color: '#00ddff',
     },
-    errorToast: {
+    toast: {
         position: 'fixed',
         top: '80px',
         right: '20px',
